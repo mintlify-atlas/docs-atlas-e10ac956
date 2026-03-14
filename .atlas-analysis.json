@@ -1,0 +1,106 @@
+{
+  "projectType": "api-service",
+  "projectName": "Vantix Sales System",
+  "projectDescription": "A RESTful sales management system built with ASP.NET Core and Entity Framework, following Clean Architecture principles",
+  "theme": "aspen",
+  "primaryColor": "#0066CC",
+  "lightColor": "#3399FF",
+  "darkColor": "#003D7A",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/clean-architecture",
+              "architecture/project-structure"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/domain-layer",
+              "concepts/application-layer",
+              "concepts/infrastructure-layer",
+              "concepts/api-layer"
+            ]
+          },
+          {
+            "group": "Database",
+            "pages": [
+              "database/overview",
+              "database/entity-framework",
+              "database/scaffolding"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/error-handling"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/endpoints/clients"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Development Guide",
+            "pages": [
+              "development/setup",
+              "development/running-locally",
+              "development/testing"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/requirements",
+              "deployment/configuration",
+              "deployment/database-migration"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Clean Architecture with separated layers (Domain, Application, Infrastructure, API)",
+    "Entity Framework Core 10 with SQL Server database",
+    "Database-first approach with EF Core scaffolding",
+    "Client management with customer registration and tracking",
+    "ASP.NET Core 10 Web API with OpenAPI/Swagger support",
+    "Layered architecture for maintainability and testability"
+  ],
+  "publicApiSurface": [
+    "VantixDbContext - Entity Framework database context",
+    "Clientes - Client/Customer entity model",
+    "WeatherForecastController - Sample API controller",
+    "Program.cs - Application entry point and service configuration",
+    "scaffold.bat - Database scaffolding utility script"
+  ]
+}
