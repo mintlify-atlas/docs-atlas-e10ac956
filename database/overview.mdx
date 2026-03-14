@@ -1,0 +1,109 @@
+---
+title: Database Overview
+description: Understanding the Vantix Sales System database architecture and schema
+---
+
+## Database Architecture
+
+The Vantix Sales System uses a **database-first approach** with SQL Server as the primary database. The system is built on Entity Framework Core, which provides object-relational mapping (ORM) between the database and the application.
+
+### Database Information
+
+- **Database Name**: VantixV1
+- **Server**: SQL Server (Windows Authentication)
+- **ORM**: Entity Framework Core
+- **Approach**: Database-first with scaffolding
+
+## Schema Overview
+
+The database currently includes the following main entities:
+
+### Clientes (Customers)
+
+The primary entity for managing customer information.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| ClienteId | int | Primary Key | Unique customer identifier |
+| Nombre | string(100) | Required | Customer first name |
+| Apellido | string(100) | Required | Customer last name |
+| DocumentoIdentidad | string(20) | Required, Unique | Identity document number |
+| Email | string(150) | Optional | Customer email address |
+| Telefono | string(20) | Optional | Customer phone number |
+| FechaRegistro | datetime | Default: getdate() | Registration date |
+| Activo | bool | Default: true | Active status flag |
+
+### Key Constraints
+
+- **Primary Key**: `ClienteId` with constraint name `PK__Clientes__71ABD0872790C1F1`
+- **Unique Index**: `DocumentoIdentidad` with constraint `UQ__Clientes__049E81A9FF79380A`
+
+## Database Context
+
+The `VantixDbContext` class (located at `Vantix.Infrastructure/Persistence/VantixDbContext.cs`) serves as the main entry point for database operations.
+
+```csharp
+public partial class VantixDbContext : DbContext
+{
+    public VantixDbContext(DbContextOptions<VantixDbContext> options)
+        : base(options)
+    {
+    }
+
+    public virtual DbSet<Clientes> Clientes { get; set; }
+}
+```
+
+## Connection String
+
+<Warning>
+  The connection string should be stored in configuration files (appsettings.json) rather than hardcoded in the DbContext. See [Entity Framework Core](/database/entity-framework#connection-configuration) for proper setup.
+</Warning>
+
+Default connection string format:
+
+```
+Server=GARIEN-DESKTOP;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;
+```
+
+## Database-First Workflow
+
+The Vantix system follows a database-first approach:
+
+<Steps>
+  <Step title="Design Database">
+    Create tables, relationships, and constraints directly in SQL Server
+  </Step>
+  
+  <Step title="Scaffold Models">
+    Run the scaffolding script to generate entity classes and DbContext
+  </Step>
+  
+  <Step title="Implement Business Logic">
+    Use the generated models in repositories and services
+  </Step>
+  
+  <Step title="Update as Needed">
+    When database schema changes, re-run scaffolding to update models
+  </Step>
+</Steps>
+
+See [Database Scaffolding](/database/scaffolding) for detailed instructions on regenerating models.
+
+## Project Structure
+
+Database-related code is organized across two projects:
+
+- **Vantix.Domain/Entities/Models**: Entity classes (generated from scaffolding)
+- **Vantix.Infrastructure/Persistence**: DbContext and database configuration
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Entity Framework" icon="database" href="/database/entity-framework">
+    Learn how to use Entity Framework Core in the application
+  </Card>
+  <Card title="Scaffolding" icon="wrench" href="/database/scaffolding">
+    Understand the database scaffolding process
+  </Card>
+</CardGroup>

@@ -1,0 +1,280 @@
+---
+title: Application Layer
+description: Understanding the application layer, business logic orchestration, and use cases in Vantix Sales System
+---
+
+## Overview
+
+The Application Layer orchestrates business workflows and use cases in the Vantix Sales System. It sits between the API Layer and the Domain Layer, coordinating domain entities and infrastructure services to fulfill business requirements.
+
+<Note>
+  The Application Layer implements use cases and application services, but delegates business rules to the Domain Layer.
+</Note>
+
+## Architecture
+
+The application layer is organized under the `Vantix.Application` namespace and contains:
+
+- **Use Cases / Command Handlers**: Implement specific business operations
+- **DTOs (Data Transfer Objects)**: Objects for data transfer between layers
+- **Service Interfaces**: Contracts for application services
+- **Validators**: Input validation logic
+- **Mappers**: Object mapping between entities and DTOs
+
+## Responsibilities
+
+### Workflow Orchestration
+
+The Application Layer coordinates multiple domain objects and infrastructure services:
+
+```csharp
+public class ClienteService : IClienteService
+{
+    private readonly IClienteRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IEmailService _emailService;
+    
+    public async Task<ClienteDto> CrearClienteAsync(CrearClienteCommand command)
+    {
+        // 1. Validate input
+        await ValidarDatosCliente(command);
+        
+        // 2. Create domain entity
+        var cliente = new Clientes
+        {
+            Nombre = command.Nombre,
+            Apellido = command.Apellido,
+            DocumentoIdentidad = command.DocumentoIdentidad,
+            Email = command.Email,
+            Telefono = command.Telefono,
+            FechaRegistro = DateTime.Now,
+            Activo = true
+        };
+        
+        // 3. Persist entity
+        await _repository.AddAsync(cliente);
+        await _unitOfWork.CommitAsync();
+        
+        // 4. Send notification (infrastructure concern)
+        if (!string.IsNullOrEmpty(cliente.Email))
+        {
+            await _emailService.EnviarBienvenidaAsync(cliente.Email);
+        }
+        
+        // 5. Return DTO
+        return MapToDto(cliente);
+    }
+}
+```
+
+### Use Case Pattern
+
+Organize application logic around specific use cases:
+
+<CodeGroup>
+```csharp Commands/CrearClienteCommand.cs
+public class CrearClienteCommand
+{
+    public string Nombre { get; set; } = string.Empty;
+    public string Apellido { get; set; } = string.Empty;
+    public string DocumentoIdentidad { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Telefono { get; set; }
+}
+```
+
+```csharp DTOs/ClienteDto.cs
+public class ClienteDto
+{
+    public int ClienteId { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public string Apellido { get; set; } = string.Empty;
+    public string NombreCompleto => $"{Nombre} {Apellido}";
+    public string DocumentoIdentidad { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Telefono { get; set; }
+    public DateTime? FechaRegistro { get; set; }
+    public bool Activo { get; set; }
+}
+```
+
+```csharp Validators/CrearClienteValidator.cs
+public class CrearClienteValidator : IValidator<CrearClienteCommand>
+{
+    private readonly IClienteRepository _repository;
+    
+    public async Task<ValidationResult> ValidateAsync(CrearClienteCommand command)
+    {
+        var errors = new List<string>();
+        
+        if (string.IsNullOrWhiteSpace(command.Nombre))
+            errors.Add("El nombre es requerido");
+            
+        if (string.IsNullOrWhiteSpace(command.DocumentoIdentidad))
+            errors.Add("El documento de identidad es requerido");
+            
+        // Check for duplicate document
+        var exists = await _repository.ExistsByDocumentoAsync(command.DocumentoIdentidad);
+        if (exists)
+            errors.Add("Ya existe un cliente con este documento de identidad");
+            
+        return new ValidationResult(errors);
+    }
+}
+```
+</CodeGroup>
+
+## Service Interfaces
+
+Define clear contracts for application services:
+
+```csharp
+public interface IClienteService
+{
+    Task<ClienteDto> CrearClienteAsync(CrearClienteCommand command);
+    Task<ClienteDto?> ObtenerPorIdAsync(int clienteId);
+    Task<List<ClienteDto>> ObtenerTodosAsync();
+    Task<ClienteDto> ActualizarClienteAsync(int clienteId, ActualizarClienteCommand command);
+    Task DesactivarClienteAsync(int clienteId);
+    Task<bool> ExistePorDocumentoAsync(string documentoIdentidad);
+}
+```
+
+<Tip>
+  Use async/await for all I/O operations to improve scalability and responsiveness.
+</Tip>
+
+## Data Transfer Objects (DTOs)
+
+DTOs serve multiple purposes:
+
+- **Decoupling**: Separate API contracts from domain entities
+- **Security**: Control what data is exposed to clients
+- **Convenience**: Add computed properties (e.g., `NombreCompleto`)
+- **Versioning**: Support multiple API versions with different DTOs
+
+### Mapping Strategies
+
+```csharp
+// Manual mapping
+public static ClienteDto MapToDto(Clientes entity)
+{
+    return new ClienteDto
+    {
+        ClienteId = entity.ClienteId,
+        Nombre = entity.Nombre,
+        Apellido = entity.Apellido,
+        DocumentoIdentidad = entity.DocumentoIdentidad,
+        Email = entity.Email,
+        Telefono = entity.Telefono,
+        FechaRegistro = entity.FechaRegistro,
+        Activo = entity.Activo ?? false
+    };
+}
+
+// Or use AutoMapper for complex scenarios
+public class ClienteProfile : Profile
+{
+    public ClienteProfile()
+    {
+        CreateMap<Clientes, ClienteDto>()
+            .ForMember(dest => dest.Activo, opt => opt.MapFrom(src => src.Activo ?? false));
+        CreateMap<CrearClienteCommand, Clientes>();
+    }
+}
+```
+
+## CQRS Pattern (Optional)
+
+For complex applications, separate read and write operations:
+
+```csharp
+// Commands (Write operations)
+public interface IClienteCommandService
+{
+    Task<int> CrearClienteAsync(CrearClienteCommand command);
+    Task ActualizarClienteAsync(ActualizarClienteCommand command);
+    Task DesactivarClienteAsync(int clienteId);
+}
+
+// Queries (Read operations)
+public interface IClienteQueryService
+{
+    Task<ClienteDto?> ObtenerPorIdAsync(int clienteId);
+    Task<List<ClienteDto>> BuscarClientesAsync(BuscarClientesQuery query);
+    Task<PaginatedResult<ClienteDto>> ObtenerPaginadoAsync(int page, int pageSize);
+}
+```
+
+## Error Handling
+
+Implement consistent error handling:
+
+```csharp
+public class ApplicationException : Exception
+{
+    public ApplicationException(string message) : base(message) { }
+}
+
+public class ValidationException : ApplicationException
+{
+    public List<string> Errors { get; }
+    
+    public ValidationException(List<string> errors) 
+        : base("Validation failed")
+    {
+        Errors = errors;
+    }
+}
+
+public class NotFoundException : ApplicationException
+{
+    public NotFoundException(string entityName, object id)
+        : base($"{entityName} with id {id} was not found") { }
+}
+```
+
+## Best Practices
+
+<Note>
+  **Keep Application Services Thin**
+  
+  - Delegate business rules to the Domain Layer
+  - Use the Application Layer for orchestration only
+  - Avoid duplicating domain logic
+  - Keep services focused on single responsibilities
+</Note>
+
+### Transaction Management
+
+Use Unit of Work pattern for transaction consistency:
+
+```csharp
+public async Task<Result> ProcesarVentaAsync(VentaCommand command)
+{
+    using var transaction = await _unitOfWork.BeginTransactionAsync();
+    try
+    {
+        // Multiple operations in single transaction
+        var venta = await CrearVentaAsync(command);
+        await ActualizarInventarioAsync(command.Items);
+        await GenerarFacturaAsync(venta);
+        
+        await _unitOfWork.CommitAsync();
+        await transaction.CommitAsync();
+        
+        return Result.Success();
+    }
+    catch (Exception ex)
+    {
+        await transaction.RollbackAsync();
+        return Result.Failure(ex.Message);
+    }
+}
+```
+
+## Related Documentation
+
+- [Domain Layer](/concepts/domain-layer) - Core business entities and rules
+- [Infrastructure Layer](/concepts/infrastructure-layer) - Data persistence implementation
+- [API Layer](/concepts/api-layer) - HTTP endpoints and controllers

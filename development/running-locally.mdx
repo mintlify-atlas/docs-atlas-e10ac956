@@ -1,0 +1,212 @@
+---
+title: 'Running Locally'
+description: 'Learn how to run the Vantix Sales System API on your local development machine'
+---
+
+## Database Configuration
+
+Before running the API, you need to configure your database connection.
+
+### Update Connection String
+
+Edit the `appsettings.Development.json` file in the `Vantix.Api` project:
+
+```json Vantix.Api/appsettings.Development.json
+{
+  "ConnectionStrings": {
+    "ventixDb": "Server=YOUR_SERVER;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=True"
+  }
+}
+```
+
+<Note>
+  Replace `YOUR_SERVER` with your SQL Server instance name:
+  - **Local instance**: `localhost` or `.` or `(localdb)\\mssqllocaldb`
+  - **Named instance**: `localhost\\SQLEXPRESS`
+  - **Remote server**: Full server name or IP address
+</Note>
+
+### Environment Variables (Alternative)
+
+You can also configure the connection string using environment variables:
+
+<CodeGroup>
+```bash Windows (PowerShell)
+$env:ConnectionStrings__ventixDb="Server=localhost;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=True"
+```
+
+```bash macOS/Linux
+export ConnectionStrings__ventixDb="Server=localhost;Database=VantixV1;User Id=sa;Password=YourPassword;TrustServerCertificate=True"
+```
+</CodeGroup>
+
+<Warning>
+  **Windows Authentication** (`Trusted_Connection=True`) only works on Windows. For macOS/Linux, use SQL Server authentication with username and password.
+</Warning>
+
+## JWT Configuration
+
+The system uses JWT for authentication. Configure the JWT secret key:
+
+```json Vantix.Api/appsettings.Development.json
+{
+  "Jwt": {
+    "Key": "Your_Super_Secret_Key_At_Least_32_Characters_Long!"
+  }
+}
+```
+
+<Warning>
+  **Never commit production secrets to source control!** Use environment variables or secure secret management for production.
+</Warning>
+
+## Running the API
+
+<Steps>
+  <Step title="Navigate to API Project">
+    Open a terminal and navigate to the API project directory:
+
+    ```bash
+    cd Vantix.Api
+    ```
+  </Step>
+
+  <Step title="Restore Dependencies">
+    Ensure all dependencies are installed:
+
+    ```bash
+    dotnet restore
+    ```
+  </Step>
+
+  <Step title="Build the Project">
+    Build the API project:
+
+    ```bash
+    dotnet build
+    ```
+  </Step>
+
+  <Step title="Run the Application">
+    Start the development server:
+
+    ```bash
+    dotnet run
+    ```
+
+    The API will start and display the listening addresses:
+
+    ```
+    info: Microsoft.Hosting.Lifetime[14]
+          Now listening on: https://localhost:5001
+    info: Microsoft.Hosting.Lifetime[14]
+          Now listening on: http://localhost:5000
+    ```
+  </Step>
+</Steps>
+
+## Access the API
+
+Once the application is running, you can access:
+
+### OpenAPI/Swagger (Development Only)
+
+The OpenAPI specification is available in development mode:
+
+```
+GET https://localhost:5001/openapi/v1.json
+```
+
+<Note>
+  The OpenAPI endpoint is only available when running in Development environment. It is automatically disabled in production.
+</Note>
+
+### API Endpoints
+
+API controllers are mapped to the `/api` route. Example:
+
+```
+GET https://localhost:5001/api/clientes
+POST https://localhost:5001/api/clientes
+```
+
+## Development Configuration
+
+### Hot Reload
+
+.NET 10 supports hot reload during development. Changes to code files will automatically reload without restarting the server:
+
+```bash
+dotnet watch run
+```
+
+<Note>
+  Hot reload works for most C# code changes but may require a full restart for:
+  - Configuration changes
+  - New package installations
+  - Startup/middleware changes
+</Note>
+
+### Logging Configuration
+
+The default logging configuration in `appsettings.Development.json`:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  }
+}
+```
+
+To see more detailed logs, change `Default` to `Debug` or `Trace`.
+
+## Troubleshooting
+
+### Port Already in Use
+
+If ports 5000/5001 are already in use, you can specify different ports:
+
+```bash
+dotnet run --urls="https://localhost:7001;http://localhost:7000"
+```
+
+### Database Connection Errors
+
+If you get connection errors:
+
+1. Verify SQL Server is running
+2. Check the connection string is correct
+3. Ensure the database `VantixV1` exists
+4. Verify authentication credentials
+
+### SSL Certificate Errors
+
+Trust the development certificate:
+
+```bash
+dotnet dev-certs https --trust
+```
+
+## Running from IDE
+
+### Visual Studio
+
+1. Open `SistemasVentasV2Angular.slnx`
+2. Set `Vantix.Api` as the startup project
+3. Press **F5** to run with debugging or **Ctrl+F5** without debugging
+
+### Visual Studio Code
+
+1. Open the workspace folder
+2. Press **F5** or select **Run > Start Debugging**
+3. Choose **.NET 5+ and .NET Core** when prompted
+
+### JetBrains Rider
+
+1. Open the solution
+2. Select `Vantix.Api` run configuration
+3. Click the **Run** or **Debug** button

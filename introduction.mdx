@@ -1,0 +1,142 @@
+---
+title: Introduction
+description: Welcome to the Vantix Sales System documentation - a modern ASP.NET Core 10 API built with Clean Architecture principles
+---
+
+## Welcome to Vantix Sales System
+
+Vantix is a comprehensive sales management system built with ASP.NET Core 10, designed to streamline customer relationship management, inventory tracking, and sales operations for modern businesses.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running with Vantix in under 5 minutes
+  </Card>
+  <Card title="Installation Guide" icon="download" href="/installation">
+    Detailed setup instructions for development and production
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture/overview">
+    Learn about the Clean Architecture design
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<Info>
+Vantix implements Clean Architecture principles, ensuring separation of concerns, maintainability, and testability across all layers of the application.
+</Info>
+
+### Customer Management
+- Complete customer lifecycle management
+- Document identity validation with unique constraints
+- Email and phone contact tracking
+- Activity status monitoring
+- Automatic registration timestamps
+
+### Modern Technology Stack
+- **ASP.NET Core 10**: Latest .NET framework with enhanced performance
+- **Entity Framework Core 10**: Powerful ORM with SQL Server support
+- **OpenAPI/Swagger**: Auto-generated API documentation
+- **Clean Architecture**: Organized in distinct layers for maintainability
+
+### Database-First Approach
+Vantix leverages Entity Framework Core's scaffolding capabilities to generate domain models directly from your existing database schema, ensuring perfect synchronization between your database and application code.
+
+## Architecture Overview
+
+The Vantix system is organized into four core projects following Clean Architecture principles:
+
+<Steps>
+  <Step title="Vantix.Domain">
+    Contains enterprise business rules and entities. This layer has no dependencies on other layers and defines the core domain models.
+    
+    ```bash
+    Vantix.Domain/
+    └── Entities/
+        └── Models/
+            └── Clientes.cs
+    ```
+  </Step>
+  
+  <Step title="Vantix.Application">
+    Contains application business rules, use cases, and interfaces. This layer depends only on the Domain layer.
+    
+    ```bash
+    Vantix.Application/
+    └── [Use Cases & Services]
+    ```
+  </Step>
+  
+  <Step title="Vantix.Infrastructure">
+    Implements external concerns like database access, file storage, and external APIs. Contains the DbContext and data persistence logic.
+    
+    ```bash
+    Vantix.Infrastructure/
+    └── Persistence/
+        └── VantixDbContext.cs
+    ```
+  </Step>
+  
+  <Step title="Vantix.Api">
+    The presentation layer that exposes HTTP endpoints. Contains controllers, middleware, and API configuration.
+    
+    ```bash
+    Vantix.Api/
+    ├── Controllers/
+    ├── Program.cs
+    └── appsettings.json
+    ```
+  </Step>
+</Steps>
+
+## Domain Model Example
+
+Here's an example of a domain entity in Vantix:
+
+```csharp title="Vantix.Domain/Entities/Models/Clientes.cs"
+namespace Vantix.Domain.Entities.Models;
+
+public partial class Clientes
+{
+    public int ClienteId { get; set; }
+    public string Nombre { get; set; } = null!;
+    public string Apellido { get; set; } = null!;
+    public string DocumentoIdentidad { get; set; } = null!;
+    public string? Email { get; set; }
+    public string? Telefono { get; set; }
+    public DateTime? FechaRegistro { get; set; }
+    public bool? Activo { get; set; }
+}
+```
+
+## Technology Requirements
+
+<CardGroup cols={2}>
+  <Card title=".NET 10 SDK" icon="microsoft">
+    Latest .NET SDK for building and running the application
+  </Card>
+  <Card title="SQL Server" icon="database">
+    SQL Server 2016 or later for data persistence
+  </Card>
+  <Card title="Visual Studio 2025" icon="code">
+    Recommended IDE with .NET 10 support
+  </Card>
+  <Card title="Entity Framework Tools" icon="wrench">
+    For database migrations and scaffolding
+  </Card>
+</CardGroup>
+
+## What's Next?
+
+<Tip>
+Ready to start building with Vantix? Follow our [Quick Start guide](/quickstart) to get your development environment set up in minutes.
+</Tip>
+
+Choose your path:
+
+- **New to Vantix?** Start with the [Quick Start guide](/quickstart)
+- **Setting up for production?** Check the [Installation guide](/installation)
+- **Want to understand the architecture?** Read the [Architecture documentation](/architecture/overview)
+- **Ready to code?** Explore the [API Reference](/api/overview)

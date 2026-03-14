@@ -1,0 +1,306 @@
+---
+title: Database Scaffolding
+description: How to scaffold Entity Framework models from the VantixV1 database
+---
+
+## Overview
+
+Database scaffolding is the process of generating Entity Framework Core entity classes and DbContext from an existing database. The Vantix Sales System uses a **database-first approach**, meaning the database schema is the source of truth.
+
+## Scaffolding Script
+
+The project includes a batch script at `scaffold.bat` that automates the scaffolding process.
+
+### Script Contents
+
+From `scaffold.bat`:
+
+```batch scaffold.bat
+@echo off
+echo 🚀 Generando modelos en Domain e Infraestructura...
+
+dotnet ef dbcontext scaffold "Server=GARIEN-DESKTOP;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;" Microsoft.EntityFrameworkCore.SqlServer ^
+  --project Vantix.Infrastructure ^
+  --output-dir ../Vantix.Domain/Entities/Models ^
+  --context-dir Persistence ^
+  --context VantixDbContext ^
+  --force ^
+  --no-pluralize ^
+  --namespace Vantix.Domain.Entities.Models ^
+  --context-namespace Vantix.Infrastructure.Persistence
+
+echo ✅ ¡Revisa tus carpetas ahora!
+pause
+```
+
+## Running the Scaffolding
+
+<Steps>
+  <Step title="Prerequisites">
+    Ensure you have the EF Core tools installed:
+    
+    ```bash
+    dotnet tool install --global dotnet-ef
+    ```
+    
+    Or update to the latest version:
+    
+    ```bash
+    dotnet tool update --global dotnet-ef
+    ```
+  </Step>
+  
+  <Step title="Verify Database Connection">
+    Make sure SQL Server is running and accessible at the configured server address (GARIEN-DESKTOP) with the VantixV1 database.
+  </Step>
+  
+  <Step title="Run the Script">
+    Execute the scaffolding script from the solution root:
+    
+    ```bash
+    scaffold.bat
+    ```
+    
+    The script will generate entity models and update the DbContext.
+  </Step>
+  
+  <Step title="Review Generated Files">
+    Check the output directories for new or updated files:
+    - Entity models in `Vantix.Domain/Entities/Models/`
+    - DbContext in `Vantix.Infrastructure/Persistence/`
+  </Step>
+</Steps>
+
+<Warning>
+  The `--force` flag will overwrite existing files. Make sure to commit any custom changes before running the scaffold script, or use partial classes to extend entities.
+</Warning>
+
+## Command Breakdown
+
+Let's examine each parameter of the scaffolding command:
+
+### Connection String
+```
+"Server=GARIEN-DESKTOP;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;"
+```
+The database connection string. Update this if your SQL Server instance has a different name or requires different authentication.
+
+### Provider
+```
+Microsoft.EntityFrameworkCore.SqlServer
+```
+Specifies SQL Server as the database provider.
+
+### Project Parameters
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `--project` | Vantix.Infrastructure | Target project for DbContext |
+| `--output-dir` | ../Vantix.Domain/Entities/Models | Directory for entity classes |
+| `--context-dir` | Persistence | Directory for DbContext (relative to project) |
+| `--context` | VantixDbContext | Name of the DbContext class |
+
+### Namespace Parameters
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `--namespace` | Vantix.Domain.Entities.Models | Namespace for entity classes |
+| `--context-namespace` | Vantix.Infrastructure.Persistence | Namespace for DbContext |
+
+### Behavior Flags
+
+| Flag | Effect |
+|------|--------|
+| `--force` | Overwrites existing files without prompting |
+| `--no-pluralize` | Keeps table names as-is (Clientes, not Cliente) |
+
+## Manual Scaffolding
+
+If you need to customize the scaffolding process, you can run the command manually with different options:
+
+### Scaffold Specific Tables
+
+```bash
+dotnet ef dbcontext scaffold "<connection-string>" Microsoft.EntityFrameworkCore.SqlServer \
+  --project Vantix.Infrastructure \
+  --table Clientes \
+  --table Productos \
+  --force
+```
+
+### Scaffold Without Overwriting
+
+Remove the `--force` flag to prompt before overwriting:
+
+```bash
+dotnet ef dbcontext scaffold "<connection-string>" Microsoft.EntityFrameworkCore.SqlServer \
+  --project Vantix.Infrastructure \
+  --output-dir ../Vantix.Domain/Entities/Models \
+  --context-dir Persistence
+```
+
+### Use Data Annotations Instead of Fluent API
+
+```bash
+dotnet ef dbcontext scaffold "<connection-string>" Microsoft.EntityFrameworkCore.SqlServer \
+  --project Vantix.Infrastructure \
+  --data-annotations
+```
+
+## Preserving Custom Code
+
+### Using Partial Classes
+
+Since scaffolded entities are `partial` classes, you can extend them without modifying the generated files:
+
+```csharp Clientes.Custom.cs
+namespace Vantix.Domain.Entities.Models;
+
+public partial class Clientes
+{
+    // Custom properties
+    public string NombreCompleto => $"{Nombre} {Apellido}";
+    
+    // Custom methods
+    public bool IsEmailValid()
+    {
+        return !string.IsNullOrEmpty(Email) && Email.Contains("@");
+    }
+}
+```
+
+### Using OnModelCreatingPartial
+
+Extend entity configurations without modifying the generated `OnModelCreating` method:
+
+```csharp VantixDbContext.Custom.cs
+namespace Vantix.Infrastructure.Persistence;
+
+public partial class VantixDbContext
+{
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
+    {
+        // Add custom configurations here
+        modelBuilder.Entity<Clientes>()
+            .HasQueryFilter(c => c.Activo == true);
+    }
+}
+```
+
+## Common Issues
+
+### Connection Failures
+
+<AccordionGroup>
+  <Accordion title="Cannot connect to SQL Server">
+    Verify:
+    - SQL Server is running
+    - Server name is correct (GARIEN-DESKTOP)
+    - Windows Authentication is enabled
+    - Firewall isn't blocking the connection
+  </Accordion>
+  
+  <Accordion title="Database not found">
+    Ensure the VantixV1 database exists on the SQL Server instance:
+    
+    ```sql
+    SELECT name FROM sys.databases;
+    ```
+  </Accordion>
+  
+  <Accordion title="Trust certificate error">
+    The `TrustServerCertificate=true` parameter is required for local development. For production, use a proper SSL certificate.
+  </Accordion>
+</AccordionGroup>
+
+### Scaffolding Errors
+
+<AccordionGroup>
+  <Accordion title="EF Core tools not installed">
+    Install or update the EF Core global tool:
+    
+    ```bash
+    dotnet tool install --global dotnet-ef
+    # or
+    dotnet tool update --global dotnet-ef
+    ```
+  </Accordion>
+  
+  <Accordion title="Project not found">
+    Ensure you're running the command from the solution directory and that `Vantix.Infrastructure.csproj` exists.
+  </Accordion>
+  
+  <Accordion title="Output directory error">
+    The target directory must exist. Create it manually if needed:
+    
+    ```bash
+    mkdir -p Vantix.Domain/Entities/Models
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+### Before Scaffolding
+
+<Steps>
+  <Step title="Commit Current Changes">
+    Always commit your current work before scaffolding to avoid losing custom modifications.
+  </Step>
+  
+  <Step title="Back Up Custom Code">
+    If you have custom code in entity files, ensure it's in separate partial class files.
+  </Step>
+  
+  <Step title="Review Database Changes">
+    Understand what changed in the database schema before regenerating models.
+  </Step>
+</Steps>
+
+### After Scaffolding
+
+<Steps>
+  <Step title="Review Generated Code">
+    Check the scaffolded files for any unexpected changes.
+  </Step>
+  
+  <Step title="Test the Application">
+    Verify that existing functionality still works with the updated models.
+  </Step>
+  
+  <Step title="Update Connection String">
+    Remove the hardcoded connection string from `OnConfiguring` in VantixDbContext.cs and use configuration-based setup instead.
+  </Step>
+</Steps>
+
+### Version Control
+
+```gitignore .gitignore
+# Don't ignore scaffolded files - they should be committed
+# Vantix.Domain/Entities/Models/*.cs
+# Vantix.Infrastructure/Persistence/VantixDbContext.cs
+```
+
+<Note>
+  Scaffolded files should be committed to version control so all team members have the same entity models.
+</Note>
+
+## When to Re-Scaffold
+
+Re-run the scaffolding script whenever:
+
+- New tables are added to the database
+- Existing tables are modified (columns added/removed/changed)
+- Relationships between tables change
+- Indexes or constraints are updated
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Overview" icon="database" href="/database/overview">
+    Learn about the database schema and architecture
+  </Card>
+  <Card title="Entity Framework" icon="code" href="/database/entity-framework">
+    Understand how to use the scaffolded models in your code
+  </Card>
+</CardGroup>

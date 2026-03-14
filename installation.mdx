@@ -1,0 +1,610 @@
+---
+title: Installation
+description: Comprehensive installation and setup guide for the Vantix Sales System
+---
+
+## Installation Overview
+
+This guide covers the complete installation process for the Vantix Sales System, from development setup to production deployment.
+
+<Info>
+For a faster setup experience, check out our [Quick Start guide](/quickstart). This installation guide provides more detailed configuration options and production deployment strategies.
+</Info>
+
+## System Requirements
+
+### Development Environment
+
+<CardGroup cols={2}>
+  <Card title=".NET 10 SDK" icon="microsoft">
+    Required for building and running the application
+    
+    **Minimum Version:** 10.0.0
+  </Card>
+  
+  <Card title="SQL Server" icon="database">
+    Database server for data persistence
+    
+    **Minimum Version:** SQL Server 2016+
+  </Card>
+  
+  <Card title="IDE" icon="code">
+    Recommended development environment
+    
+    - Visual Studio 2025 (recommended)
+    - Visual Studio Code with C# extension
+    - JetBrains Rider
+  </Card>
+  
+  <Card title="Entity Framework Tools" icon="wrench">
+    CLI tools for database operations
+    
+    **Package:** dotnet-ef (global tool)
+  </Card>
+</CardGroup>
+
+### Operating System Support
+
+- Windows 10/11 (recommended)
+- Windows Server 2016+
+- Linux (Ubuntu 20.04+, RHEL 8+)
+- macOS 11+ (for development only)
+
+### Hardware Recommendations
+
+**Minimum:**
+- 4 GB RAM
+- 2 CPU cores
+- 10 GB disk space
+
+**Recommended:**
+- 8 GB RAM or more
+- 4+ CPU cores
+- 20 GB disk space (including database)
+
+## Step-by-Step Installation
+
+### 1. Install Prerequisites
+
+<Steps>
+  <Step title="Install .NET 10 SDK">
+    Download the .NET 10 SDK from the official Microsoft website:
+    
+    ```bash
+    # Windows (using winget)
+    winget install Microsoft.DotNet.SDK.10
+    
+    # Linux (Ubuntu/Debian)
+    wget https://dot.net/v1/dotnet-install.sh
+    chmod +x dotnet-install.sh
+    ./dotnet-install.sh --channel 10.0
+    
+    # Verify installation
+    dotnet --version
+    ```
+    
+    Expected output: `10.x.x`
+  </Step>
+  
+  <Step title="Install SQL Server">
+    Choose the appropriate SQL Server edition:
+    
+    **For Development:**
+    - SQL Server Express (free)
+    - SQL Server Developer Edition (free)
+    - SQL Server LocalDB
+    
+    **For Production:**
+    - SQL Server Standard
+    - SQL Server Enterprise
+    - Azure SQL Database
+    
+    Download from: https://www.microsoft.com/sql-server/downloads
+    
+    <Warning>
+    Make note of your SQL Server instance name and authentication mode during installation.
+    </Warning>
+  </Step>
+  
+  <Step title="Install Entity Framework Core Tools">
+    Install the EF Core CLI tools globally:
+    
+    ```bash
+    dotnet tool install --global dotnet-ef
+    ```
+    
+    Verify the installation:
+    
+    ```bash
+    dotnet ef --version
+    ```
+    
+    Expected output: `Entity Framework Core .NET Command-line Tools 10.x.x`
+    
+    <Tip>
+    If you already have an older version installed, update it using:
+    ```bash
+    dotnet tool update --global dotnet-ef
+    ```
+    </Tip>
+  </Step>
+  
+  <Step title="Install an IDE (Optional but Recommended)">
+    **Visual Studio 2025:**
+    - Download from: https://visualstudio.microsoft.com/
+    - Select the "ASP.NET and web development" workload during installation
+    - Includes built-in debugging, IntelliSense, and SQL Server integration
+    
+    **Visual Studio Code:**
+    - Download from: https://code.visualstudio.com/
+    - Install the C# Dev Kit extension
+    - Install the SQL Server (mssql) extension
+  </Step>
+</Steps>
+
+### 2. Clone and Configure the Project
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the Vantix repository to your local machine:
+    
+    ```bash
+    git clone <repository-url>
+    cd source
+    ```
+    
+    The repository includes:
+    - `Vantix.Api` - Web API project
+    - `Vantix.Application` - Application layer
+    - `Vantix.Domain` - Domain entities
+    - `Vantix.Infrastructure` - Data access layer
+  </Step>
+  
+  <Step title="Restore NuGet Packages">
+    Restore all dependencies for the solution:
+    
+    ```bash
+    dotnet restore
+    ```
+    
+    This installs packages for all projects, including:
+    - Microsoft.EntityFrameworkCore (10.0.3)
+    - Microsoft.EntityFrameworkCore.SqlServer (10.0.3)
+    - Microsoft.AspNetCore.OpenApi (10.0.3)
+  </Step>
+  
+  <Step title="Configure Application Settings">
+    Update the configuration file with your environment-specific settings.
+    
+    **For Development:**
+    
+    Edit `Vantix.Api/appsettings.Development.json`:
+    
+    ```json title="appsettings.Development.json"
+    {
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft.AspNetCore": "Warning"
+        }
+      },
+      "ConnectionStrings": {
+        "ventixDb": "Server=YOUR_SERVER_NAME;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=True"
+      },
+      "Jwt": {
+        "Key": "Your_Secret_Key_At_Least_32_Characters_Long!"
+      }
+    }
+    ```
+    
+    **Connection String Examples:**
+    
+    <CodeGroup>
+    ```json Windows Authentication
+    "ConnectionStrings": {
+      "ventixDb": "Server=localhost;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=True"
+    }
+    ```
+    
+    ```json SQL Server Authentication
+    "ConnectionStrings": {
+      "ventixDb": "Server=localhost;Database=VantixV1;User Id=sa;Password=YourPassword;TrustServerCertificate=True"
+    }
+    ```
+    
+    ```json SQL Server Express
+    "ConnectionStrings": {
+      "ventixDb": "Server=.\\SQLEXPRESS;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=True"
+    }
+    ```
+    
+    ```json LocalDB
+    "ConnectionStrings": {
+      "ventixDb": "Server=(localdb)\\MSSQLLocalDB;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=True"
+    }
+    ```
+    
+    ```json Azure SQL Database
+    "ConnectionStrings": {
+      "ventixDb": "Server=tcp:yourserver.database.windows.net,1433;Database=VantixV1;User Id=yourusername;Password=yourpassword;Encrypt=True;"
+    }
+    ```
+    </CodeGroup>
+    
+    <Warning>
+    **Security Best Practice:** Never commit sensitive credentials to source control. Use environment variables or Azure Key Vault for production secrets.
+    </Warning>
+  </Step>
+</Steps>
+
+### 3. Database Setup
+
+<Steps>
+  <Step title="Create the Database">
+    Create a new database for Vantix:
+    
+    **Using SQL Server Management Studio (SSMS):**
+    1. Connect to your SQL Server instance
+    2. Right-click "Databases" → "New Database"
+    3. Name it `VantixV1`
+    4. Click OK
+    
+    **Using T-SQL:**
+    ```sql
+    CREATE DATABASE VantixV1;
+    GO
+    ```
+    
+    **Using Azure Portal (for Azure SQL):**
+    1. Navigate to SQL databases
+    2. Click "+ Create"
+    3. Configure server and database settings
+    4. Set database name to `VantixV1`
+  </Step>
+  
+  <Step title="Create Database Schema">
+    Run the initial schema creation script:
+    
+    ```sql title="Initial Schema"
+    USE VantixV1;
+    GO
+    
+    -- Create Clientes table
+    CREATE TABLE Clientes (
+        ClienteId INT PRIMARY KEY IDENTITY(1,1),
+        Nombre NVARCHAR(100) NOT NULL,
+        Apellido NVARCHAR(100) NOT NULL,
+        DocumentoIdentidad NVARCHAR(20) NOT NULL,
+        Email NVARCHAR(150),
+        Telefono NVARCHAR(20),
+        FechaRegistro DATETIME DEFAULT GETDATE(),
+        Activo BIT DEFAULT 1,
+        CONSTRAINT UQ_DocumentoIdentidad UNIQUE (DocumentoIdentidad)
+    );
+    GO
+    
+    -- Create index on DocumentoIdentidad for faster lookups
+    CREATE INDEX IX_Clientes_DocumentoIdentidad ON Clientes(DocumentoIdentidad);
+    GO
+    ```
+    
+    <Info>
+    The schema includes a unique constraint on `DocumentoIdentidad` to prevent duplicate customer records.
+    </Info>
+  </Step>
+  
+  <Step title="Verify Database Connection">
+    Test the database connection from your application:
+    
+    ```bash
+    cd Vantix.Infrastructure
+    dotnet ef dbcontext info
+    ```
+    
+    You should see information about the VantixDbContext, including:
+    - Provider: Microsoft.EntityFrameworkCore.SqlServer
+    - Database: VantixV1
+  </Step>
+</Steps>
+
+### 4. Generate Entity Models (Database-First)
+
+<Steps>
+  <Step title="Configure Scaffold Script">
+    Vantix uses Entity Framework Core's scaffolding feature to generate entity classes from the database schema.
+    
+    Edit `scaffold.bat` (or create `scaffold.sh` for Linux/Mac):
+    
+    ```batch title="scaffold.bat"
+    @echo off
+    echo 🚀 Generando modelos en Domain e Infraestructura...
+    
+    dotnet ef dbcontext scaffold "Server=YOUR_SERVER;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;" Microsoft.EntityFrameworkCore.SqlServer ^
+      --project Vantix.Infrastructure ^
+      --output-dir ../Vantix.Domain/Entities/Models ^
+      --context-dir Persistence ^
+      --context VantixDbContext ^
+      --force ^
+      --no-pluralize ^
+      --namespace Vantix.Domain.Entities.Models ^
+      --context-namespace Vantix.Infrastructure.Persistence
+    
+    echo ✅ ¡Revisa tus carpetas ahora!
+    pause
+    ```
+    
+    <Tip>
+    The scaffold script parameters:
+    - `--force`: Overwrites existing files
+    - `--no-pluralize`: Keeps table names as-is
+    - `--namespace`: Sets the namespace for generated entities
+    - `--output-dir`: Specifies where to generate entity classes
+    </Tip>
+  </Step>
+  
+  <Step title="Run the Scaffold Script">
+    Execute the scaffold script from the root directory:
+    
+    ```bash
+    # Windows
+    scaffold.bat
+    
+    # Linux/Mac
+    chmod +x scaffold.sh
+    ./scaffold.sh
+    ```
+    
+    This generates:
+    - Entity classes in `Vantix.Domain/Entities/Models/`
+    - DbContext in `Vantix.Infrastructure/Persistence/VantixDbContext.cs`
+  </Step>
+  
+  <Step title="Review Generated Code">
+    Check the generated entity:
+    
+    ```csharp title="Vantix.Domain/Entities/Models/Clientes.cs"
+    namespace Vantix.Domain.Entities.Models;
+    
+    public partial class Clientes
+    {
+        public int ClienteId { get; set; }
+        public string Nombre { get; set; } = null!;
+        public string Apellido { get; set; } = null!;
+        public string DocumentoIdentidad { get; set; } = null!;
+        public string? Email { get; set; }
+        public string? Telefono { get; set; }
+        public DateTime? FechaRegistro { get; set; }
+        public bool? Activo { get; set; }
+    }
+    ```
+    
+    And the DbContext:
+    
+    ```csharp title="Vantix.Infrastructure/Persistence/VantixDbContext.cs" {8,19}
+    using Microsoft.EntityFrameworkCore;
+    using Vantix.Domain.Entities.Models;
+    
+    namespace Vantix.Infrastructure.Persistence;
+    
+    public partial class VantixDbContext : DbContext
+    {
+        public VantixDbContext(DbContextOptions<VantixDbContext> options)
+            : base(options)
+        {
+        }
+        
+        public virtual DbSet<Clientes> Clientes { get; set; }
+        
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Clientes>(entity =>
+            {
+                entity.HasKey(e => e.ClienteId);
+                entity.HasIndex(e => e.DocumentoIdentidad).IsUnique();
+                entity.Property(e => e.Activo).HasDefaultValue(true);
+                entity.Property(e => e.FechaRegistro).HasDefaultValueSql("(getdate())");
+                // ... additional configuration
+            });
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+### 5. Build and Run
+
+<Steps>
+  <Step title="Build the Solution">
+    Compile all projects to verify there are no errors:
+    
+    ```bash
+    dotnet build
+    ```
+    
+    You should see:
+    ```
+    Build succeeded.
+        0 Warning(s)
+        0 Error(s)
+    ```
+  </Step>
+  
+  <Step title="Run the API">
+    Start the Vantix API:
+    
+    ```bash
+    cd Vantix.Api
+    dotnet run
+    ```
+    
+    Or use the watch mode for development (auto-restarts on file changes):
+    
+    ```bash
+    dotnet watch run
+    ```
+    
+    The API will start on:
+    - HTTPS: `https://localhost:5001`
+    - HTTP: `http://localhost:5000`
+  </Step>
+  
+  <Step title="Verify the API is Running">
+    Access the OpenAPI specification:
+    
+    ```bash
+    curl https://localhost:5001/openapi/v1.json
+    ```
+    
+    Or open in your browser: `https://localhost:5001/openapi/v1.json`
+    
+    <Tip>
+    Import the OpenAPI spec into Postman or Swagger UI for interactive API testing.
+    </Tip>
+  </Step>
+</Steps>
+
+## Production Deployment
+
+### Publish the Application
+
+<Steps>
+  <Step title="Create a Release Build">
+    ```bash
+    dotnet publish -c Release -o ./publish
+    ```
+    
+    This creates an optimized build in the `./publish` directory.
+  </Step>
+  
+  <Step title="Configure Production Settings">
+    Create `appsettings.Production.json`:
+    
+    ```json title="appsettings.Production.json"
+    {
+      "Logging": {
+        "LogLevel": {
+          "Default": "Warning",
+          "Microsoft.AspNetCore": "Warning"
+        }
+      },
+      "ConnectionStrings": {
+        "ventixDb": "${DATABASE_CONNECTION_STRING}"
+      },
+      "Jwt": {
+        "Key": "${JWT_SECRET_KEY}"
+      },
+      "AllowedHosts": "yourdomain.com"
+    }
+    ```
+    
+    <Warning>
+    Use environment variables for all sensitive configuration in production. Never hardcode credentials.
+    </Warning>
+  </Step>
+  
+  <Step title="Deploy to IIS (Windows)">
+    1. Install the ASP.NET Core Hosting Bundle
+    2. Create a new Application Pool (No Managed Code)
+    3. Create a new website pointing to the publish folder
+    4. Set environment variables in IIS
+    5. Ensure the application pool identity has database access
+  </Step>
+  
+  <Step title="Deploy to Docker">
+    Create a `Dockerfile`:
+    
+    ```dockerfile title="Dockerfile"
+    FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+    WORKDIR /app
+    EXPOSE 80
+    EXPOSE 443
+    
+    FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+    WORKDIR /src
+    COPY ["Vantix.Api/Vantix.Api.csproj", "Vantix.Api/"]
+    COPY ["Vantix.Application/Vantix.Application.csproj", "Vantix.Application/"]
+    COPY ["Vantix.Domain/Vantix.Domain.csproj", "Vantix.Domain/"]
+    COPY ["Vantix.Infrastructure/Vantix.Infrastructure.csproj", "Vantix.Infrastructure/"]
+    RUN dotnet restore "Vantix.Api/Vantix.Api.csproj"
+    COPY . .
+    WORKDIR "/src/Vantix.Api"
+    RUN dotnet build "Vantix.Api.csproj" -c Release -o /app/build
+    
+    FROM build AS publish
+    RUN dotnet publish "Vantix.Api.csproj" -c Release -o /app/publish
+    
+    FROM base AS final
+    WORKDIR /app
+    COPY --from=publish /app/publish .
+    ENTRYPOINT ["dotnet", "Vantix.Api.dll"]
+    ```
+    
+    Build and run:
+    ```bash
+    docker build -t vantix-api .
+    docker run -p 8080:80 -e ConnectionStrings__ventixDb="..." vantix-api
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Connection Issues
+
+<Warning>
+If you can't connect to the database, verify:
+- SQL Server is running
+- Firewall allows connections
+- Connection string is correct
+- User has appropriate permissions
+</Warning>
+
+**Test connection:**
+```bash
+cd Vantix.Infrastructure
+dotnet ef dbcontext info
+```
+
+### Scaffolding Errors
+
+**Error: "The term 'dotnet-ef' is not recognized"**
+
+Solution:
+```bash
+dotnet tool install --global dotnet-ef
+```
+
+**Error: "Unable to connect to database"**
+
+Solution: Verify connection string in `scaffold.bat` matches your SQL Server instance.
+
+### Build Errors
+
+**Error: "The current .NET SDK does not support targeting .NET 10.0"**
+
+Solution: Install .NET 10 SDK from https://dot.net
+
+**Error: Missing package references**
+
+Solution:
+```bash
+dotnet restore
+dotnet build
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/overview">
+    Explore available endpoints and models
+  </Card>
+  <Card title="Architecture Guide" icon="diagram-project" href="/architecture/overview">
+    Learn about the Clean Architecture design
+  </Card>
+  <Card title="Development Guide" icon="code" href="/development/setup">
+    Best practices for extending the system
+  </Card>
+  <Card title="Authentication" icon="shield" href="/api/authentication">
+    Configure authentication and authorization
+  </Card>
+</CardGroup>

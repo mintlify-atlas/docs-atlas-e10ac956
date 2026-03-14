@@ -1,0 +1,468 @@
+---
+title: API Layer
+description: Understanding the API layer, REST controllers, and HTTP endpoints in Vantix Sales System
+---
+
+## Overview
+
+The API Layer exposes the Vantix Sales System's functionality through RESTful HTTP endpoints. Built with ASP.NET Core, this layer handles HTTP requests, validates input, and returns appropriate responses to client applications.
+
+<Note>
+  The API Layer acts as the entry point to the application, delegating business logic to the Application Layer.
+</Note>
+
+## Architecture
+
+The API layer is organized under the `Vantix.Api` namespace and contains:
+
+- **Controllers**: Handle HTTP requests and responses
+- **Middleware**: Cross-cutting concerns (authentication, logging, error handling)
+- **Filters**: Request/response processing
+- **DTOs**: API request/response models
+- **Startup Configuration**: Service registration and middleware pipeline
+
+## Program.cs Configuration
+
+The entry point configures services and the middleware pipeline:
+
+<CodeGroup>
+```csharp Vantix.Api/Program.cs
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddControllers();
+
+// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddOpenApi();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.UseHttpsRedirection();
+
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
+```
+</CodeGroup>
+
+### Service Configuration
+
+Expand the service configuration to include all dependencies:
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Controllers
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = null;
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    });
+
+// Database Context
+builder.Services.AddDbContext<VantixDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("VantixDatabase")));
+
+// Repositories
+builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Application Services
+builder.Services.AddScoped<IClienteService, ClienteService>();
+
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAngular", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+// OpenAPI/Swagger
+builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Vantix Sales API",
+        Version = "v1",
+        Description = "RESTful API for Vantix Sales System"
+    });
+});
+```
+
+### Middleware Pipeline
+
+```csharp
+var app = builder.Build();
+
+// Development-specific middleware
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Vantix API v1"));
+}
+else
+{
+    app.UseExceptionHandler("/Error");
+    app.UseHsts();
+}
+
+// Security
+app.UseHttpsRedirection();
+app.UseCors("AllowAngular");
+
+// Authentication & Authorization
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Map controllers
+app.MapControllers();
+
+app.Run();
+```
+
+## REST Controllers
+
+### Controller Structure
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using Vantix.Application.Interfaces;
+using Vantix.Application.DTOs;
+
+namespace Vantix.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Produces("application/json")]
+public class ClientesController : ControllerBase
+{
+    private readonly IClienteService _clienteService;
+    private readonly ILogger<ClientesController> _logger;
+    
+    public ClientesController(
+        IClienteService clienteService,
+        ILogger<ClientesController> logger)
+    {
+        _clienteService = clienteService;
+        _logger = logger;
+    }
+    
+    // GET: api/clientes
+    [HttpGet]
+    [ProducesResponseType(typeof(List<ClienteDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<ClienteDto>>> GetAll()
+    {
+        var clientes = await _clienteService.ObtenerTodosAsync();
+        return Ok(clientes);
+    }
+    
+    // GET: api/clientes/5
+    [HttpGet("{id}")]
+    [ProducesResponseType(typeof(ClienteDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ClienteDto>> GetById(int id)
+    {
+        var cliente = await _clienteService.ObtenerPorIdAsync(id);
+        
+        if (cliente == null)
+            return NotFound(new { message = $"Cliente con ID {id} no encontrado" });
+            
+        return Ok(cliente);
+    }
+    
+    // POST: api/clientes
+    [HttpPost]
+    [ProducesResponseType(typeof(ClienteDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ClienteDto>> Create([FromBody] CrearClienteCommand command)
+    {
+        try
+        {
+            var cliente = await _clienteService.CrearClienteAsync(command);
+            return CreatedAtAction(nameof(GetById), new { id = cliente.ClienteId }, cliente);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { errors = ex.Errors });
+        }
+    }
+    
+    // PUT: api/clientes/5
+    [HttpPut("{id}")]
+    [ProducesResponseType(typeof(ClienteDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ClienteDto>> Update(int id, [FromBody] ActualizarClienteCommand command)
+    {
+        try
+        {
+            var cliente = await _clienteService.ActualizarClienteAsync(id, command);
+            return Ok(cliente);
+        }
+        catch (NotFoundException)
+        {
+            return NotFound(new { message = $"Cliente con ID {id} no encontrado" });
+        }
+    }
+    
+    // DELETE: api/clientes/5
+    [HttpDelete("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(int id)
+    {
+        try
+        {
+            await _clienteService.DesactivarClienteAsync(id);
+            return NoContent();
+        }
+        catch (NotFoundException)
+        {
+            return NotFound(new { message = $"Cliente con ID {id} no encontrado" });
+        }
+    }
+}
+```
+
+## HTTP Status Codes
+
+Use appropriate status codes for different scenarios:
+
+| Status Code | Usage | Example |
+|-------------|-------|----------|
+| 200 OK | Successful GET/PUT | Returning cliente data |
+| 201 Created | Successful POST | Cliente created |
+| 204 No Content | Successful DELETE | Cliente deleted |
+| 400 Bad Request | Validation errors | Invalid input data |
+| 404 Not Found | Resource not found | Cliente doesn't exist |
+| 500 Internal Server Error | Unexpected errors | Database connection failure |
+
+<Tip>
+  Use `ProducesResponseType` attributes to generate accurate OpenAPI documentation.
+</Tip>
+
+## Request/Response Models
+
+### Request Models
+
+```csharp
+public class CrearClienteRequest
+{
+    [Required(ErrorMessage = "El nombre es requerido")]
+    [StringLength(100, ErrorMessage = "El nombre no puede exceder 100 caracteres")]
+    public string Nombre { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "El apellido es requerido")]
+    [StringLength(100)]
+    public string Apellido { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "El documento de identidad es requerido")]
+    [StringLength(20)]
+    public string DocumentoIdentidad { get; set; } = string.Empty;
+    
+    [EmailAddress(ErrorMessage = "Email inválido")]
+    [StringLength(150)]
+    public string? Email { get; set; }
+    
+    [Phone(ErrorMessage = "Teléfono inválido")]
+    [StringLength(20)]
+    public string? Telefono { get; set; }
+}
+```
+
+### Response Models
+
+```csharp
+public class ClienteResponse
+{
+    public int ClienteId { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public string Apellido { get; set; } = string.Empty;
+    public string NombreCompleto { get; set; } = string.Empty;
+    public string DocumentoIdentidad { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Telefono { get; set; }
+    public DateTime FechaRegistro { get; set; }
+    public bool Activo { get; set; }
+}
+
+public class ApiResponse<T>
+{
+    public bool Success { get; set; }
+    public T? Data { get; set; }
+    public string? Message { get; set; }
+    public List<string>? Errors { get; set; }
+}
+```
+
+## Error Handling
+
+### Global Exception Handler
+
+```csharp
+public class GlobalExceptionHandler : IExceptionHandler
+{
+    private readonly ILogger<GlobalExceptionHandler> _logger;
+    
+    public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
+    {
+        _logger = logger;
+    }
+    
+    public async ValueTask<bool> TryHandleAsync(
+        HttpContext httpContext,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogError(exception, "An error occurred: {Message}", exception.Message);
+        
+        var response = exception switch
+        {
+            ValidationException validationEx => new ApiError
+            {
+                StatusCode = StatusCodes.Status400BadRequest,
+                Message = "Validation failed",
+                Errors = validationEx.Errors
+            },
+            NotFoundException notFoundEx => new ApiError
+            {
+                StatusCode = StatusCodes.Status404NotFound,
+                Message = notFoundEx.Message
+            },
+            _ => new ApiError
+            {
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = "An unexpected error occurred"
+            }
+        };
+        
+        httpContext.Response.StatusCode = response.StatusCode;
+        await httpContext.Response.WriteAsJsonAsync(response, cancellationToken);
+        
+        return true;
+    }
+}
+
+// Register in Program.cs
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+```
+
+## API Versioning
+
+Support multiple API versions:
+
+```csharp
+// Install: Asp.Versioning.Mvc
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+});
+
+// Controller with versioning
+[ApiController]
+[Route("api/v{version:apiVersion}/[controller]")]
+[ApiVersion("1.0")]
+public class ClientesController : ControllerBase
+{
+    // v1.0 endpoints
+}
+
+[ApiController]
+[Route("api/v{version:apiVersion}/[controller]")]
+[ApiVersion("2.0")]
+public class ClientesV2Controller : ControllerBase
+{
+    // v2.0 endpoints with breaking changes
+}
+```
+
+## Best Practices
+
+<Note>
+  **API Design Principles**
+  
+  - Keep controllers thin - delegate to Application Layer
+  - Use consistent naming conventions
+  - Implement proper error handling
+  - Document with OpenAPI/Swagger
+  - Version your APIs from the start
+  - Use DTOs to control API contracts
+  - Implement rate limiting and authentication
+</Note>
+
+### Action Filters
+
+```csharp
+public class ValidateModelAttribute : ActionFilterAttribute
+{
+    public override void OnActionExecuting(ActionExecutingContext context)
+    {
+        if (!context.ModelState.IsValid)
+        {
+            var errors = context.ModelState
+                .Where(e => e.Value?.Errors.Count > 0)
+                .SelectMany(e => e.Value!.Errors.Select(er => er.ErrorMessage))
+                .ToList();
+                
+            context.Result = new BadRequestObjectResult(new
+            {
+                success = false,
+                errors = errors
+            });
+        }
+    }
+}
+
+// Apply to controller
+[ValidateModel]
+public class ClientesController : ControllerBase
+{
+    // Automatic model validation
+}
+```
+
+### Logging
+
+```csharp
+[HttpPost]
+public async Task<ActionResult<ClienteDto>> Create([FromBody] CrearClienteCommand command)
+{
+    _logger.LogInformation("Creating new cliente: {DocumentoIdentidad}", command.DocumentoIdentidad);
+    
+    try
+    {
+        var cliente = await _clienteService.CrearClienteAsync(command);
+        _logger.LogInformation("Cliente created successfully: {ClienteId}", cliente.ClienteId);
+        return CreatedAtAction(nameof(GetById), new { id = cliente.ClienteId }, cliente);
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error creating cliente: {DocumentoIdentidad}", command.DocumentoIdentidad);
+        throw;
+    }
+}
+```
+
+## Related Documentation
+
+- [Domain Layer](/concepts/domain-layer) - Business entities and rules
+- [Application Layer](/concepts/application-layer) - Business logic and use cases
+- [Infrastructure Layer](/concepts/infrastructure-layer) - Data access and persistence

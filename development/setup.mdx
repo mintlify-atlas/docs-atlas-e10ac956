@@ -1,0 +1,118 @@
+---
+title: 'Development Environment Setup'
+description: 'Set up your development environment for the Vantix Sales System'
+---
+
+## Prerequisites
+
+Before you begin developing with Vantix Sales System, ensure you have the following installed:
+
+<Steps>
+  <Step title="Install .NET 10 SDK">
+    The Vantix Sales System requires **.NET 10.0** to run.
+
+    Download and install the .NET 10 SDK from the [official Microsoft website](https://dotnet.microsoft.com/download/dotnet/10.0).
+
+    Verify your installation:
+    ```bash
+    dotnet --version
+    ```
+
+    You should see version `10.0.x` or higher.
+  </Step>
+
+  <Step title="Install SQL Server">
+    The system uses **Microsoft SQL Server** as its database.
+
+    - **Windows**: Install SQL Server Express or Developer Edition
+    - **macOS/Linux**: Install SQL Server in Docker or use Azure SQL Database
+
+    <Note>
+      The default configuration expects SQL Server to be available at `GARIEN-DESKTOP` with Windows Authentication. You'll need to update this for your environment.
+    </Note>
+  </Step>
+
+  <Step title="Install an IDE">
+    Choose one of the following IDEs:
+
+    - **Visual Studio 2025** (recommended for Windows)
+    - **Visual Studio Code** with C# Dev Kit extension
+    - **JetBrains Rider**
+  </Step>
+
+  <Step title="Install Entity Framework Core Tools">
+    The EF Core tools are required for database scaffolding and migrations:
+
+    ```bash
+    dotnet tool install --global dotnet-ef
+    ```
+
+    Verify the installation:
+    ```bash
+    dotnet ef --version
+    ```
+  </Step>
+</Steps>
+
+## Clone the Repository
+
+Clone the Vantix Sales System repository to your local machine:
+
+```bash
+git clone <repository-url>
+cd SistemasVentasV2Angular
+```
+
+## Project Structure
+
+The solution follows Clean Architecture principles with the following projects:
+
+```
+SistemasVentasV2Angular/
+├── Vantix.Api/              # Web API presentation layer
+├── Vantix.Application/      # Application business logic
+├── Vantix.Core/            # Core domain logic
+├── Vantix.Domain/          # Domain entities and models
+├── Vantix.Infrastructure/  # Data access and external services
+└── scaffold.bat            # Database scaffolding script
+```
+
+<Note>
+  - **Vantix.Api**: ASP.NET Core Web API (targets .NET 10.0)
+  - **Vantix.Infrastructure**: Entity Framework Core 10.0.3 with SQL Server provider
+  - **Vantix.Domain**: Domain entities generated from database
+</Note>
+
+## Restore Dependencies
+
+Restore NuGet packages for all projects:
+
+```bash
+dotnet restore
+```
+
+This will download all required dependencies, including:
+- Microsoft.AspNetCore.OpenApi (10.0.3)
+- Microsoft.EntityFrameworkCore (10.0.3)
+- Microsoft.EntityFrameworkCore.SqlServer (10.0.3)
+- Entity Framework Core Tools (10.0.3)
+
+## Build the Solution
+
+Build all projects to verify everything is set up correctly:
+
+```bash
+dotnet build
+```
+
+<Warning>
+  If you encounter build errors, ensure you have .NET 10 SDK installed and all NuGet packages restored.
+</Warning>
+
+## Next Steps
+
+Once your development environment is set up:
+
+1. [Configure your database connection](/development/running-locally#database-configuration)
+2. [Run the project locally](/development/running-locally)
+3. [Set up database scaffolding](/deployment/database-migration)

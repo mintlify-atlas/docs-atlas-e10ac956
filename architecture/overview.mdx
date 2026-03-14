@@ -1,0 +1,178 @@
+---
+title: 'Architecture Overview'
+description: 'High-level overview of the Vantix Sales System architecture and design principles'
+---
+
+## Introduction
+
+The Vantix Sales System is built using **Clean Architecture** principles, ensuring a maintainable, testable, and scalable codebase. The architecture separates concerns into distinct layers, with dependencies flowing inward toward the core business logic.
+
+## Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Vantix.Api Layer                     │
+│  (Controllers, Middleware, API Endpoints)               │
+└──────────────────┬──────────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────────┐
+│              Vantix.Application Layer                   │
+│  (Use Cases, DTOs, Business Logic Orchestration)        │
+└──────────────────┬──────────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────────┐
+│               Vantix.Domain Layer                       │
+│  (Entities, Value Objects, Domain Rules)                │
+└─────────────────────────────────────────────────────────┘
+                   ▲
+                   │
+┌──────────────────┴──────────────────────────────────────┐
+│            Vantix.Infrastructure Layer                  │
+│  (Database, External Services, Persistence)             │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Core Principles
+
+<CardGroup cols={2}>
+  <Card title="Separation of Concerns" icon="layer-group">
+    Each layer has a specific responsibility and contains code related to that concern only.
+  </Card>
+  
+  <Card title="Dependency Inversion" icon="arrows-turn-to-dots">
+    Dependencies point inward. The Domain layer has no dependencies on other layers.
+  </Card>
+  
+  <Card title="Testability" icon="vial">
+    Business logic is isolated from infrastructure, making unit testing straightforward.
+  </Card>
+  
+  <Card title="Flexibility" icon="puzzle-piece">
+    Infrastructure can be swapped without affecting business logic (e.g., changing databases).
+  </Card>
+</CardGroup>
+
+## The Four Layers
+
+### 1. Domain Layer (Vantix.Domain)
+
+The **core** of the application containing:
+- **Entities**: Business objects with identity (e.g., `Clientes`)
+- **Value Objects**: Immutable objects defined by their attributes
+- **Domain Events**: Events that occur within the domain
+- **Domain Interfaces**: Contracts for repositories and services
+
+<Note>
+  The Domain layer has **zero dependencies** on other projects. It defines the business rules and entities.
+</Note>
+
+**Example Entity**: `Vantix.Domain.Entities.Models.Clientes`
+
+### 2. Application Layer (Vantix.Application)
+
+Orchestrates the application's **use cases** and contains:
+- **Use Cases/Commands**: Specific business operations
+- **Query Handlers**: Data retrieval logic
+- **DTOs**: Data Transfer Objects for communication between layers
+- **Application Interfaces**: Contracts for external services
+
+<Info>
+  This layer depends only on the Domain layer and coordinates business workflows.
+</Info>
+
+### 3. Infrastructure Layer (Vantix.Infrastructure)
+
+Implements **technical concerns** and external dependencies:
+- **Database Context**: Entity Framework Core DbContext (`VantixDbContext`)
+- **Repositories**: Data access implementations
+- **External Services**: Third-party API integrations
+- **File Systems**: File I/O operations
+
+**Key Components**:
+- `Vantix.Infrastructure.Persistence.VantixDbContext` - EF Core database context
+- Entity configurations and migrations
+
+<Warning>
+  Infrastructure depends on Domain for entity definitions but should be abstracted through interfaces.
+</Warning>
+
+### 4. API Layer (Vantix.Api)
+
+The **presentation layer** that exposes the application:
+- **Controllers**: HTTP endpoints for REST API
+- **Middleware**: Request/response pipeline components
+- **Filters**: Cross-cutting concerns (validation, error handling)
+- **Startup Configuration**: Dependency injection and service registration
+
+**Entry Point**: `Program.cs` configures services and middleware
+
+## Request Flow
+
+<Steps>
+  <Step title="HTTP Request">
+    A client sends an HTTP request to the API endpoint (e.g., `POST /api/clientes`)
+  </Step>
+  
+  <Step title="Controller Processing">
+    The Controller in `Vantix.Api` receives the request and validates the input
+  </Step>
+  
+  <Step title="Application Use Case">
+    The Controller invokes the appropriate use case handler in `Vantix.Application`
+  </Step>
+  
+  <Step title="Domain Logic">
+    The Application layer works with Domain entities and applies business rules
+  </Step>
+  
+  <Step title="Infrastructure Interaction">
+    If data persistence is needed, the Infrastructure layer (DbContext) is used through repository interfaces
+  </Step>
+  
+  <Step title="Response">
+    The result flows back through the layers and is returned as an HTTP response
+  </Step>
+</Steps>
+
+## Technology Stack
+
+<AccordionGroup>
+  <Accordion title="Framework & Runtime">
+    - **.NET 10.0**: Latest .NET framework
+    - **ASP.NET Core**: Web API framework
+    - **C# 13**: Programming language with nullable reference types enabled
+  </Accordion>
+  
+  <Accordion title="Data Access">
+    - **Entity Framework Core 10.0.3**: ORM for database operations
+    - **SQL Server**: Primary database
+    - **Code-First Migrations**: Database schema management
+  </Accordion>
+  
+  <Accordion title="API & Documentation">
+    - **OpenAPI/Swagger**: API documentation and testing
+    - **ASP.NET Core OpenAPI**: Built-in OpenAPI support
+  </Accordion>
+</AccordionGroup>
+
+## Benefits of This Architecture
+
+1. **Maintainability**: Clear separation makes code easier to understand and modify
+2. **Testability**: Business logic can be tested without databases or external dependencies
+3. **Scalability**: Layers can be scaled independently
+4. **Flexibility**: Infrastructure can be changed without affecting business logic
+5. **Team Collaboration**: Different teams can work on different layers simultaneously
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Clean Architecture Principles" icon="book" href="/architecture/clean-architecture">
+    Deep dive into Clean Architecture implementation
+  </Card>
+  
+  <Card title="Project Structure" icon="folder-tree" href="/architecture/project-structure">
+    Explore the detailed project organization
+  </Card>
+</CardGroup>

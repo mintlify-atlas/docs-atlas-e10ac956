@@ -1,0 +1,372 @@
+---
+title: 'Clean Architecture Principles'
+description: 'Understanding Clean Architecture implementation in the Vantix Sales System'
+---
+
+## What is Clean Architecture?
+
+Clean Architecture, introduced by Robert C. Martin (Uncle Bob), is an architectural pattern that emphasizes **separation of concerns** and **independence** from frameworks, databases, and external agencies. The goal is to create systems that are:
+
+- **Independent of Frameworks**: The architecture doesn't depend on feature-laden software libraries
+- **Testable**: Business rules can be tested without UI, database, or external elements
+- **Independent of UI**: The UI can change without changing the rest of the system
+- **Independent of Database**: Business rules aren't bound to the database
+- **Independent of External Agencies**: Business rules don't know about the outside world
+
+## The Dependency Rule
+
+<Note>
+  **The Dependency Rule**: Source code dependencies must point **inward** toward higher-level policies. Nothing in an inner circle can know anything about something in an outer circle.
+</Note>
+
+```
+        ┌─────────────────────────────────┐
+        │    Vantix.Api (Outermost)       │
+        │    ┌─────────────────────────┐  │
+        │    │  Vantix.Infrastructure  │  │
+        │    │  ┌───────────────────┐  │  │
+        │    │  │ Vantix.Application│  │  │
+        │    │  │  ┌─────────────┐  │  │  │
+        │    │  │  │   Domain    │  │  │  │
+        │    │  │  │   (Core)    │  │  │  │
+        │    │  │  └─────────────┘  │  │  │
+        │    │  └───────────────────┘  │  │
+        │    └─────────────────────────┘  │
+        └─────────────────────────────────┘
+
+        Dependencies flow INWARD ────────────>
+```
+
+## Implementation in Vantix
+
+### Domain Layer: The Core
+
+The **Vantix.Domain** project is the center of the application. It contains:
+
+<AccordionGroup>
+  <Accordion title="Entities">
+    Business objects with identity that represent core concepts.
+    
+    **Example**: The `Clientes` entity in `Vantix.Domain.Entities.Models`
+    
+    ```csharp
+    namespace Vantix.Domain.Entities.Models;
+    
+    public partial class Clientes
+    {
+        public int ClienteId { get; set; }
+        public string Nombre { get; set; } = null!;
+        public string Apellido { get; set; } = null!;
+        public string DocumentoIdentidad { get; set; } = null!;
+        public string? Email { get; set; }
+        public string? Telefono { get; set; }
+        public DateTime? FechaRegistro { get; set; }
+        public bool? Activo { get; set; }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Value Objects">
+    Immutable objects that are defined by their attributes rather than identity.
+    
+    Examples could include: `Email`, `PhoneNumber`, `Money`
+  </Accordion>
+  
+  <Accordion title="Domain Interfaces">
+    Contracts that define how the domain interacts with external concerns.
+    
+    ```csharp
+    // Example repository interface (defined in Domain)
+    public interface IClienteRepository
+    {
+        Task<Cliente> GetByIdAsync(int id);
+        Task<IEnumerable<Cliente>> GetAllAsync();
+        Task AddAsync(Cliente cliente);
+        Task UpdateAsync(Cliente cliente);
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Domain Events">
+    Events that represent something meaningful that happened in the domain.
+    
+    Example: `ClienteRegistradoEvent`, `VentaCompletadaEvent`
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  The Domain layer has **NO dependencies** on any other project. It uses only .NET Standard types.
+</Warning>
+
+### Application Layer: Use Cases
+
+The **Vantix.Application** project orchestrates business workflows:
+
+<Steps>
+  <Step title="Define Use Case">
+    Create command/query classes that represent specific business operations
+    
+    Example: `RegistrarClienteCommand`, `ObtenerClienteQuery`
+  </Step>
+  
+  <Step title="Implement Handler">
+    Create handlers that execute the use case logic
+    
+    ```csharp
+    public class RegistrarClienteHandler
+    {
+        private readonly IClienteRepository _repository;
+        
+        public async Task<ClienteDto> Handle(RegistrarClienteCommand command)
+        {
+            // Validate business rules
+            // Create domain entity
+            // Save through repository
+            // Return DTO
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="Return DTOs">
+    Use Data Transfer Objects to communicate across layer boundaries
+  </Step>
+</Steps>
+
+<Info>
+  The Application layer depends **only** on the Domain layer. It knows nothing about databases or HTTP.
+</Info>
+
+### Infrastructure Layer: Implementation Details
+
+The **Vantix.Infrastructure** project implements technical concerns:
+
+#### Database Context
+
+The `VantixDbContext` in `Vantix.Infrastructure.Persistence` implements Entity Framework Core:
+
+```csharp
+namespace Vantix.Infrastructure.Persistence;
+
+public partial class VantixDbContext : DbContext
+{
+    public VantixDbContext(DbContextOptions<VantixDbContext> options)
+        : base(options)
+    {
+    }
+    
+    public virtual DbSet<Clientes> Clientes { get; set; }
+    
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Entity configurations
+        modelBuilder.Entity<Clientes>(entity =>
+        {
+            entity.HasKey(e => e.ClienteId);
+            entity.HasIndex(e => e.DocumentoIdentidad).IsUnique();
+            entity.Property(e => e.Activo).HasDefaultValue(true);
+            // ... more configuration
+        });
+    }
+}
+```
+
+#### Repository Pattern
+
+Repositories implement domain interfaces:
+
+```csharp
+// Implements IClienteRepository from Domain
+public class ClienteRepository : IClienteRepository
+{
+    private readonly VantixDbContext _context;
+    
+    public ClienteRepository(VantixDbContext context)
+    {
+        _context = context;
+    }
+    
+    public async Task<Cliente> GetByIdAsync(int id)
+    {
+        return await _context.Clientes.FindAsync(id);
+    }
+}
+```
+
+<Note>
+  Infrastructure depends on Domain for entity definitions but is hidden behind interfaces.
+</Note>
+
+### API Layer: Presentation
+
+The **Vantix.Api** project exposes the application through HTTP endpoints:
+
+#### Program.cs Configuration
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Register services
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
+
+// Dependency Injection
+// builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+// builder.Services.AddDbContext<VantixDbContext>(options => ...);
+
+var app = builder.Build();
+
+// Configure middleware pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.UseHttpsRedirection();
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();
+```
+
+#### Controllers
+
+Controllers handle HTTP requests and delegate to Application layer:
+
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+public class ClientesController : ControllerBase
+{
+    private readonly RegistrarClienteHandler _handler;
+    
+    [HttpPost]
+    public async Task<IActionResult> Registrar([FromBody] RegistrarClienteCommand command)
+    {
+        var result = await _handler.Handle(command);
+        return Ok(result);
+    }
+}
+```
+
+## Benefits in Practice
+
+<CardGroup cols={2}>
+  <Card title="Testable Business Logic" icon="flask">
+    Domain and Application layers can be tested without databases or HTTP
+    
+    ```csharp
+    [Test]
+    public void Cliente_DebeValidarEmail()
+    {
+        // Test domain rules without infrastructure
+    }
+    ```
+  </Card>
+  
+  <Card title="Flexible Infrastructure" icon="swap">
+    Switch from SQL Server to PostgreSQL by changing only Infrastructure
+    
+    Business logic remains unchanged
+  </Card>
+  
+  <Card title="Clear Dependencies" icon="diagram-project">
+    Each layer's responsibilities are well-defined
+    
+    New developers understand the structure quickly
+  </Card>
+  
+  <Card title="Independent Development" icon="users">
+    Teams can work on different layers simultaneously
+    
+    API team doesn't block business logic team
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+### Dependency Injection
+
+All dependencies are injected through constructors:
+
+```csharp
+public class ClienteService
+{
+    private readonly IClienteRepository _repository;
+    private readonly IEmailService _emailService;
+    
+    public ClienteService(
+        IClienteRepository repository,
+        IEmailService emailService)
+    {
+        _repository = repository;
+        _emailService = emailService;
+    }
+}
+```
+
+### Interface Segregation
+
+Define small, focused interfaces in the Domain:
+
+```csharp
+public interface IClienteRepository
+{
+    Task<Cliente> GetByIdAsync(int id);
+}
+
+public interface IClienteWriteRepository
+{
+    Task AddAsync(Cliente cliente);
+    Task UpdateAsync(Cliente cliente);
+}
+```
+
+### CQRS Principles
+
+Separate read and write operations:
+
+- **Commands**: Modify state (Create, Update, Delete)
+- **Queries**: Read state (Get, List)
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep Domain Pure">
+    - No infrastructure references in Domain
+    - Use only primitive types and .NET Standard types
+    - Define interfaces for external dependencies
+  </Accordion>
+  
+  <Accordion title="Use DTOs at Boundaries">
+    - Don't expose domain entities directly through API
+    - Create DTOs in Application layer
+    - Map entities to DTOs before returning
+  </Accordion>
+  
+  <Accordion title="Validate in Multiple Layers">
+    - **API Layer**: Input validation (format, required fields)
+    - **Application Layer**: Business rule validation
+    - **Domain Layer**: Invariant validation
+  </Accordion>
+  
+  <Accordion title="Keep Controllers Thin">
+    - Controllers should only:
+      - Validate HTTP input
+      - Call use case handlers
+      - Return HTTP responses
+    - No business logic in controllers
+  </Accordion>
+</AccordionGroup>
+
+## Further Reading
+
+<CardGroup cols={2}>
+  <Card title="Project Structure" icon="folder-tree" href="/architecture/project-structure">
+    Explore the detailed file and folder organization
+  </Card>
+  
+  <Card title="Development Guide" icon="code" href="/development">
+    Learn how to develop features following these principles
+  </Card>
+</CardGroup>

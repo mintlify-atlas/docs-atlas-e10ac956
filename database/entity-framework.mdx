@@ -1,0 +1,299 @@
+---
+title: Entity Framework Core
+description: Using Entity Framework Core in the Vantix Sales System
+---
+
+## Overview
+
+The Vantix Sales System uses **Entity Framework Core** as its Object-Relational Mapper (ORM). EF Core provides a powerful way to work with databases using .NET objects, eliminating the need for most data-access code.
+
+## DbContext Configuration
+
+The `VantixDbContext` class is the main database context located at `Vantix.Infrastructure/Persistence/VantixDbContext.cs`.
+
+### Basic Structure
+
+```csharp VantixDbContext.cs
+using Microsoft.EntityFrameworkCore;
+using Vantix.Domain.Entities.Models;
+
+namespace Vantix.Infrastructure.Persistence;
+
+public partial class VantixDbContext : DbContext
+{
+    public VantixDbContext(DbContextOptions<VantixDbContext> options)
+        : base(options)
+    {
+    }
+
+    public virtual DbSet<Clientes> Clientes { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Entity configurations
+        OnModelCreatingPartial(modelBuilder);
+    }
+
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+}
+```
+
+## Connection Configuration
+
+<Warning>
+  Never hardcode connection strings in your DbContext. Always use configuration files and dependency injection.
+</Warning>
+
+### Recommended Setup
+
+<Steps>
+  <Step title="Remove Hardcoded Connection">
+    Delete the `OnConfiguring` method from `VantixDbContext.cs` if it contains a hardcoded connection string.
+  </Step>
+  
+  <Step title="Add to appsettings.json">
+    Store the connection string in your configuration file:
+    
+    ```json appsettings.json
+    {
+      "ConnectionStrings": {
+        "VantixDatabase": "Server=GARIEN-DESKTOP;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;"
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Register in Startup/Program.cs">
+    Configure the DbContext with dependency injection:
+    
+    ```csharp Program.cs
+    builder.Services.AddDbContext<VantixDbContext>(options =>
+        options.UseSqlServer(
+            builder.Configuration.GetConnectionString("VantixDatabase")));
+    ```
+  </Step>
+</Steps>
+
+### Environment-Specific Configuration
+
+<CodeGroup>
+
+```json appsettings.Development.json
+{
+  "ConnectionStrings": {
+    "VantixDatabase": "Server=localhost;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;"
+  }
+}
+```
+
+```json appsettings.Production.json
+{
+  "ConnectionStrings": {
+    "VantixDatabase": "Server=prod-server;Database=VantixV1;User Id=vantix_app;Password=${DB_PASSWORD};TrustServerCertificate=true;"
+  }
+}
+```
+
+</CodeGroup>
+
+## Entity Configuration
+
+Entity configurations define the mapping between C# classes and database tables. The `OnModelCreating` method in `VantixDbContext.cs` contains these configurations.
+
+### Clientes Entity Example
+
+From `VantixDbContext.cs:27-42`, here's how the Clientes entity is configured:
+
+```csharp
+modelBuilder.Entity<Clientes>(entity =>
+{
+    // Primary Key
+    entity.HasKey(e => e.ClienteId)
+        .HasName("PK__Clientes__71ABD0872790C1F1");
+
+    // Unique Index
+    entity.HasIndex(e => e.DocumentoIdentidad, "UQ__Clientes__049E81A9FF79380A")
+        .IsUnique();
+
+    // Property Configurations
+    entity.Property(e => e.Activo).HasDefaultValue(true);
+    entity.Property(e => e.Apellido).HasMaxLength(100);
+    entity.Property(e => e.DocumentoIdentidad).HasMaxLength(20);
+    entity.Property(e => e.Email).HasMaxLength(150);
+    entity.Property(e => e.FechaRegistro)
+        .HasDefaultValueSql("(getdate())")
+        .HasColumnType("datetime");
+    entity.Property(e => e.Nombre).HasMaxLength(100);
+    entity.Property(e => e.Telefono).HasMaxLength(20);
+});
+```
+
+### Configuration Elements
+
+- **Primary Key**: Defined with `HasKey()` and includes the database constraint name
+- **Indexes**: Created with `HasIndex()` for performance and uniqueness
+- **Default Values**: Set with `HasDefaultValue()` or `HasDefaultValueSql()`
+- **String Lengths**: Configured with `HasMaxLength()`
+- **Column Types**: Specified with `HasColumnType()` for precise type mapping
+
+## Entity Classes
+
+Entity classes are located in `Vantix.Infrastructure/Entities/Models/` (note: the scaffolding script targets a different output directory).
+
+### Clientes Entity
+
+From `Vantix.Infrastructure/Entities/Models/Clientes.cs`:
+
+```csharp Clientes.cs
+using System;
+using System.Collections.Generic;
+
+namespace Vantix.Domain.Entities.Models;
+
+public partial class Clientes
+{
+    public int ClienteId { get; set; }
+    public string Nombre { get; set; } = null!;
+    public string Apellido { get; set; } = null!;
+    public string DocumentoIdentidad { get; set; } = null!;
+    public string? Email { get; set; }
+    public string? Telefono { get; set; }
+    public DateTime? FechaRegistro { get; set; }
+    public bool? Activo { get; set; }
+}
+```
+
+<Note>
+  Entities are declared as `partial` classes, allowing you to extend them with custom logic in separate files without modifying the scaffolded code.
+</Note>
+
+## Working with DbContext
+
+### Dependency Injection
+
+Inject the DbContext into your repositories or services:
+
+```csharp
+public class ClienteRepository
+{
+    private readonly VantixDbContext _context;
+
+    public ClienteRepository(VantixDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<List<Clientes>> GetAllActiveClientes()
+    {
+        return await _context.Clientes
+            .Where(c => c.Activo == true)
+            .ToListAsync();
+    }
+}
+```
+
+### Common Operations
+
+<CodeGroup>
+
+```csharp Query
+// Get all active customers
+var activeCustomers = await _context.Clientes
+    .Where(c => c.Activo == true)
+    .OrderBy(c => c.Apellido)
+    .ToListAsync();
+```
+
+```csharp Insert
+// Add new customer
+var newCliente = new Clientes
+{
+    Nombre = "Juan",
+    Apellido = "Pérez",
+    DocumentoIdentidad = "12345678",
+    Email = "juan.perez@example.com"
+};
+
+_context.Clientes.Add(newCliente);
+await _context.SaveChangesAsync();
+```
+
+```csharp Update
+// Update customer
+var cliente = await _context.Clientes
+    .FindAsync(clienteId);
+
+if (cliente != null)
+{
+    cliente.Email = "newemail@example.com";
+    await _context.SaveChangesAsync();
+}
+```
+
+```csharp Delete
+// Soft delete (recommended)
+var cliente = await _context.Clientes
+    .FindAsync(clienteId);
+
+if (cliente != null)
+{
+    cliente.Activo = false;
+    await _context.SaveChangesAsync();
+}
+```
+
+</CodeGroup>
+
+## Best Practices
+
+### Use Async/Await
+
+Always use asynchronous methods for database operations:
+
+```csharp
+// ✅ Good
+await _context.Clientes.ToListAsync();
+
+// ❌ Bad
+_context.Clientes.ToList();
+```
+
+### Dispose Contexts Properly
+
+When using dependency injection, the framework handles disposal automatically. If creating contexts manually:
+
+```csharp
+using (var context = new VantixDbContext(options))
+{
+    // Perform operations
+    await context.SaveChangesAsync();
+} // Context disposed here
+```
+
+### Track Changes Efficiently
+
+```csharp
+// For read-only queries, use AsNoTracking
+var customers = await _context.Clientes
+    .AsNoTracking()
+    .ToListAsync();
+```
+
+### Handle Concurrency
+
+```csharp
+try
+{
+    await _context.SaveChangesAsync();
+}
+catch (DbUpdateConcurrencyException)
+{
+    // Handle concurrency conflict
+}
+```
+
+## Next Steps
+
+<Card title="Database Scaffolding" icon="wrench" href="/database/scaffolding">
+  Learn how to regenerate entity models when the database schema changes
+</Card>

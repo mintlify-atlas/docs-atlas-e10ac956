@@ -1,0 +1,263 @@
+---
+title: "Error Handling"
+description: "Understanding HTTP status codes and error responses in the Vantix API"
+---
+
+## Overview
+
+The Vantix API uses standard HTTP status codes to indicate the success or failure of API requests. Understanding these codes will help you handle errors gracefully in your applications.
+
+## HTTP Status Codes
+
+The API returns standard HTTP status codes as defined in RFC 7231:
+
+### Success Codes (2xx)
+
+<ResponseField name="200 OK" type="success">
+  The request was successful. The response body contains the requested data.
+</ResponseField>
+
+<ResponseField name="201 Created" type="success">
+  A new resource was successfully created. The response includes the newly created resource.
+</ResponseField>
+
+<ResponseField name="204 No Content" type="success">
+  The request was successful, but there is no content to return (common for DELETE operations).
+</ResponseField>
+
+### Client Error Codes (4xx)
+
+<ResponseField name="400 Bad Request" type="error">
+  The request was invalid or malformed. Check your request parameters and body.
+</ResponseField>
+
+<ResponseField name="401 Unauthorized" type="error">
+  Authentication credentials are missing or invalid. Include a valid Bearer token in the Authorization header.
+</ResponseField>
+
+<ResponseField name="403 Forbidden" type="error">
+  The authenticated user does not have permission to access the requested resource.
+</ResponseField>
+
+<ResponseField name="404 Not Found" type="error">
+  The requested resource does not exist. Verify the endpoint URL and resource ID.
+</ResponseField>
+
+<ResponseField name="409 Conflict" type="error">
+  The request conflicts with the current state of the resource (e.g., duplicate entries).
+</ResponseField>
+
+<ResponseField name="422 Unprocessable Entity" type="error">
+  The request was well-formed but contains semantic errors. Check validation rules.
+</ResponseField>
+
+### Server Error Codes (5xx)
+
+<ResponseField name="500 Internal Server Error" type="error">
+  An unexpected error occurred on the server. Contact support if the issue persists.
+</ResponseField>
+
+<ResponseField name="503 Service Unavailable" type="error">
+  The service is temporarily unavailable. Try again later.
+</ResponseField>
+
+## Error Response Format
+
+When an error occurs, the API returns a standardized error response following the Problem Details specification (RFC 7807):
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7231#section-6.5.1",
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "detail": "The request contains invalid data.",
+  "errors": {
+    "Nombre": ["The Nombre field is required."]
+  }
+}
+```
+
+### Error Response Fields
+
+<Expandable title="Error Response Schema">
+  <ResponseField name="type" type="string">
+    A URI reference that identifies the problem type
+  </ResponseField>
+  
+  <ResponseField name="title" type="string">
+    A short, human-readable summary of the problem type
+  </ResponseField>
+  
+  <ResponseField name="status" type="number">
+    The HTTP status code
+  </ResponseField>
+  
+  <ResponseField name="detail" type="string">
+    A human-readable explanation specific to this occurrence of the problem
+  </ResponseField>
+  
+  <ResponseField name="errors" type="object">
+    Additional details about validation errors (when applicable)
+  </ResponseField>
+</Expandable>
+
+## Common Error Scenarios
+
+### Validation Errors
+
+When submitting data that fails validation rules:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7231#section-6.5.1",
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": {
+    "Nombre": ["The Nombre field is required."],
+    "Email": ["The Email field is not a valid e-mail address."]
+  }
+}
+```
+
+**How to fix**: Review the `errors` object to identify which fields failed validation and correct the input data.
+
+### Authentication Errors
+
+When the authorization token is missing or invalid:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7235#section-3.1",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Authorization has been denied for this request."
+}
+```
+
+**How to fix**: Ensure you include a valid Bearer token in the Authorization header.
+
+### Resource Not Found
+
+When requesting a resource that doesn't exist:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7231#section-6.5.4",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "The requested resource was not found."
+}
+```
+
+**How to fix**: Verify the resource ID and endpoint URL are correct.
+
+### Server Errors
+
+When an unexpected error occurs:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7231#section-6.6.1",
+  "title": "An error occurred while processing your request.",
+  "status": 500,
+  "detail": "Internal server error"
+}
+```
+
+**How to fix**: Check server logs for details. Contact support if the issue persists.
+
+## Error Handling Best Practices
+
+### 1. Always Check Status Codes
+
+```javascript
+const response = await fetch('/api/clientes', {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN'
+  }
+});
+
+if (!response.ok) {
+  const error = await response.json();
+  console.error('API Error:', error);
+  // Handle error appropriately
+}
+```
+
+### 2. Handle Validation Errors
+
+```javascript
+if (response.status === 400) {
+  const error = await response.json();
+  if (error.errors) {
+    // Display field-specific validation errors
+    Object.keys(error.errors).forEach(field => {
+      console.log(`${field}: ${error.errors[field].join(', ')}`);
+    });
+  }
+}
+```
+
+### 3. Implement Retry Logic for Server Errors
+
+```javascript
+async function apiRequestWithRetry(url, options, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.status < 500) {
+        return response; // Don't retry client errors
+      }
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+    }
+  }
+}
+```
+
+### 4. Provide User-Friendly Messages
+
+<Tip>
+  Don't expose technical error details to end users. Map API errors to user-friendly messages in your application.
+</Tip>
+
+```javascript
+const errorMessages = {
+  400: 'Please check your input and try again.',
+  401: 'Please log in to continue.',
+  403: 'You don\'t have permission to perform this action.',
+  404: 'The requested item was not found.',
+  500: 'Something went wrong. Please try again later.'
+};
+
+const userMessage = errorMessages[response.status] || 'An error occurred.';
+```
+
+## Logging and Monitoring
+
+The API uses ASP.NET Core's built-in logging infrastructure as configured in `appsettings.json`:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  }
+}
+```
+
+<Info>
+  In production environments, configure appropriate logging levels and integrate with monitoring tools to track API errors and performance.
+</Info>
+
+## Next Steps
+
+- Review [Authentication](/api/authentication) to ensure proper authorization
+- Explore [Client Endpoints](/api/endpoints/clients) to see endpoint-specific examples
+- Check the [API Overview](/api/overview) for general API information

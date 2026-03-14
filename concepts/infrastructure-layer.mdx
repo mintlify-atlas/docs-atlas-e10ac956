@@ -1,0 +1,395 @@
+---
+title: Infrastructure Layer
+description: Understanding the infrastructure layer, Entity Framework, and data persistence in Vantix Sales System
+---
+
+## Overview
+
+The Infrastructure Layer provides concrete implementations for data access, external services, and cross-cutting concerns in the Vantix Sales System. This layer contains framework-specific code and handles all interactions with external systems.
+
+<Note>
+  The Infrastructure Layer implements interfaces defined in the Domain and Application layers, following the Dependency Inversion Principle.
+</Note>
+
+## Architecture
+
+The infrastructure layer is organized under the `Vantix.Infrastructure` namespace and contains:
+
+- **Persistence**: Database context and Entity Framework configurations
+- **Repositories**: Data access implementations
+- **External Services**: Third-party integrations
+- **Cross-cutting Concerns**: Logging, caching, email, etc.
+
+## Entity Framework Core
+
+### VantixDbContext
+
+The `VantixDbContext` is the central class for database operations, inheriting from Entity Framework's `DbContext`:
+
+<CodeGroup>
+```csharp Vantix.Infrastructure/Persistence/VantixDbContext.cs
+using System;
+using System.Collections.Generic;
+using Microsoft.EntityFrameworkCore;
+using Vantix.Domain.Entities.Models;
+
+namespace Vantix.Infrastructure.Persistence;
+
+public partial class VantixDbContext : DbContext
+{
+    public VantixDbContext()
+    {
+    }
+
+    public VantixDbContext(DbContextOptions<VantixDbContext> options)
+        : base(options)
+    {
+    }
+
+    public virtual DbSet<Clientes> Clientes { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        => optionsBuilder.UseSqlServer(
+            "Server=GARIEN-DESKTOP;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;");
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Clientes>(entity =>
+        {
+            entity.HasKey(e => e.ClienteId)
+                .HasName("PK__Clientes__71ABD0872790C1F1");
+
+            entity.HasIndex(e => e.DocumentoIdentidad, "UQ__Clientes__049E81A9FF79380A")
+                .IsUnique();
+
+            entity.Property(e => e.Activo).HasDefaultValue(true);
+            entity.Property(e => e.Apellido).HasMaxLength(100);
+            entity.Property(e => e.DocumentoIdentidad).HasMaxLength(20);
+            entity.Property(e => e.Email).HasMaxLength(150);
+            entity.Property(e => e.FechaRegistro)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
+            entity.Property(e => e.Nombre).HasMaxLength(100);
+            entity.Property(e => e.Telefono).HasMaxLength(20);
+        });
+
+        OnModelCreatingPartial(modelBuilder);
+    }
+
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+}
+```
+</CodeGroup>
+
+### DbContext Features
+
+| Feature | Description |
+|---------|-------------|
+| **DbSet Properties** | Represent database tables (e.g., `DbSet<Clientes>`) |
+| **OnModelCreating** | Configures entity mappings and relationships |
+| **OnConfiguring** | Sets up database connection (should use appsettings.json) |
+| **Partial Methods** | Allow extending configuration in separate files |
+
+<Tip>
+  Move connection strings to `appsettings.json` for better security and environment-specific configuration.
+</Tip>
+
+## Entity Configuration
+
+### Fluent API Configuration
+
+The `OnModelCreating` method uses Fluent API to configure entities:
+
+```csharp
+modelBuilder.Entity<Clientes>(entity =>
+{
+    // Primary Key
+    entity.HasKey(e => e.ClienteId)
+        .HasName("PK__Clientes__71ABD0872790C1F1");
+
+    // Unique Index
+    entity.HasIndex(e => e.DocumentoIdentidad, "UQ__Clientes__049E81A9FF79380A")
+        .IsUnique();
+
+    // Default Values
+    entity.Property(e => e.Activo).HasDefaultValue(true);
+    
+    // String Length Constraints
+    entity.Property(e => e.Apellido).HasMaxLength(100);
+    entity.Property(e => e.DocumentoIdentidad).HasMaxLength(20);
+    entity.Property(e => e.Email).HasMaxLength(150);
+    
+    // Date/Time with Default
+    entity.Property(e => e.FechaRegistro)
+        .HasDefaultValueSql("(getdate())")
+        .HasColumnType("datetime");
+});
+```
+
+### Configuration Patterns
+
+**Separate Configuration Classes:**
+
+```csharp
+public class ClientesConfiguration : IEntityTypeConfiguration<Clientes>
+{
+    public void Configure(EntityTypeBuilder<Clientes> builder)
+    {
+        builder.HasKey(e => e.ClienteId);
+        
+        builder.HasIndex(e => e.DocumentoIdentidad)
+            .IsUnique();
+            
+        builder.Property(e => e.Nombre)
+            .IsRequired()
+            .HasMaxLength(100);
+            
+        builder.Property(e => e.Activo)
+            .HasDefaultValue(true);
+    }
+}
+
+// Apply in DbContext
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    modelBuilder.ApplyConfiguration(new ClientesConfiguration());
+}
+```
+
+## Repository Pattern
+
+Implement the Repository pattern for data access abstraction:
+
+### Generic Repository
+
+```csharp
+public interface IRepository<T> where T : class
+{
+    Task<T?> GetByIdAsync(int id);
+    Task<List<T>> GetAllAsync();
+    Task<T> AddAsync(T entity);
+    Task UpdateAsync(T entity);
+    Task DeleteAsync(T entity);
+    Task<bool> ExistsAsync(int id);
+}
+
+public class Repository<T> : IRepository<T> where T : class
+{
+    protected readonly VantixDbContext _context;
+    protected readonly DbSet<T> _dbSet;
+    
+    public Repository(VantixDbContext context)
+    {
+        _context = context;
+        _dbSet = context.Set<T>();
+    }
+    
+    public async Task<T?> GetByIdAsync(int id)
+    {
+        return await _dbSet.FindAsync(id);
+    }
+    
+    public async Task<List<T>> GetAllAsync()
+    {
+        return await _dbSet.ToListAsync();
+    }
+    
+    public async Task<T> AddAsync(T entity)
+    {
+        await _dbSet.AddAsync(entity);
+        return entity;
+    }
+    
+    public async Task UpdateAsync(T entity)
+    {
+        _dbSet.Update(entity);
+    }
+    
+    public async Task DeleteAsync(T entity)
+    {
+        _dbSet.Remove(entity);
+    }
+}
+```
+
+### Specific Repository
+
+```csharp
+public interface IClienteRepository : IRepository<Clientes>
+{
+    Task<Clientes?> GetByDocumentoAsync(string documentoIdentidad);
+    Task<List<Clientes>> GetActivosAsync();
+    Task<bool> ExistsByDocumentoAsync(string documentoIdentidad);
+}
+
+public class ClienteRepository : Repository<Clientes>, IClienteRepository
+{
+    public ClienteRepository(VantixDbContext context) : base(context)
+    {
+    }
+    
+    public async Task<Clientes?> GetByDocumentoAsync(string documentoIdentidad)
+    {
+        return await _dbSet
+            .FirstOrDefaultAsync(c => c.DocumentoIdentidad == documentoIdentidad);
+    }
+    
+    public async Task<List<Clientes>> GetActivosAsync()
+    {
+        return await _dbSet
+            .Where(c => c.Activo == true)
+            .OrderBy(c => c.Nombre)
+            .ToListAsync();
+    }
+    
+    public async Task<bool> ExistsByDocumentoAsync(string documentoIdentidad)
+    {
+        return await _dbSet
+            .AnyAsync(c => c.DocumentoIdentidad == documentoIdentidad);
+    }
+}
+```
+
+## Unit of Work Pattern
+
+Manage transactions across multiple repositories:
+
+```csharp
+public interface IUnitOfWork : IDisposable
+{
+    IClienteRepository Clientes { get; }
+    Task<int> CommitAsync();
+    Task BeginTransactionAsync();
+    Task CommitTransactionAsync();
+    Task RollbackTransactionAsync();
+}
+
+public class UnitOfWork : IUnitOfWork
+{
+    private readonly VantixDbContext _context;
+    private IDbContextTransaction? _transaction;
+    
+    public IClienteRepository Clientes { get; }
+    
+    public UnitOfWork(VantixDbContext context, IClienteRepository clienteRepository)
+    {
+        _context = context;
+        Clientes = clienteRepository;
+    }
+    
+    public async Task<int> CommitAsync()
+    {
+        return await _context.SaveChangesAsync();
+    }
+    
+    public async Task BeginTransactionAsync()
+    {
+        _transaction = await _context.Database.BeginTransactionAsync();
+    }
+    
+    public async Task CommitTransactionAsync()
+    {
+        if (_transaction != null)
+        {
+            await _transaction.CommitAsync();
+            await _transaction.DisposeAsync();
+            _transaction = null;
+        }
+    }
+    
+    public void Dispose()
+    {
+        _transaction?.Dispose();
+        _context.Dispose();
+    }
+}
+```
+
+## Database Connection Configuration
+
+<Note>
+  **Security Best Practice**: Never hardcode connection strings in source code. Use configuration files and environment variables.
+</Note>
+
+### appsettings.json Configuration
+
+```json
+{
+  "ConnectionStrings": {
+    "VantixDatabase": "Server=localhost;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;"
+  }
+}
+```
+
+### Dependency Injection Setup
+
+```csharp
+// In Program.cs
+builder.Services.AddDbContext<VantixDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("VantixDatabase")
+    )
+);
+
+// Register repositories
+builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+```
+
+## Migrations
+
+Manage database schema changes with EF Core migrations:
+
+```bash
+# Create a new migration
+dotnet ef migrations add InitialCreate --project Vantix.Infrastructure
+
+# Update database
+dotnet ef database update --project Vantix.Infrastructure
+
+# Remove last migration
+dotnet ef migrations remove --project Vantix.Infrastructure
+```
+
+## Best Practices
+
+<Note>
+  **Performance Tips**
+  
+  - Use `AsNoTracking()` for read-only queries
+  - Implement pagination for large datasets
+  - Use `Include()` judiciously to avoid N+1 queries
+  - Consider compiled queries for frequently-used queries
+  - Use async operations for all database access
+</Note>
+
+### Query Optimization
+
+```csharp
+// Good: Efficient query with projection
+public async Task<List<ClienteDto>> GetClientesLightAsync()
+{
+    return await _context.Clientes
+        .AsNoTracking()
+        .Where(c => c.Activo == true)
+        .Select(c => new ClienteDto
+        {
+            ClienteId = c.ClienteId,
+            Nombre = c.Nombre,
+            Apellido = c.Apellido
+        })
+        .ToListAsync();
+}
+
+// Bad: Loading full entities when not needed
+public async Task<List<Clientes>> GetClientesAsync()
+{
+    return await _context.Clientes.ToListAsync(); // Loads all columns
+}
+```
+
+## Related Documentation
+
+- [Domain Layer](/concepts/domain-layer) - Entity definitions and business rules
+- [Application Layer](/concepts/application-layer) - Service implementations using repositories
+- [API Layer](/concepts/api-layer) - Controllers consuming application services

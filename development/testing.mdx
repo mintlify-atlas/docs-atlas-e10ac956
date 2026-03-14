@@ -1,0 +1,377 @@
+---
+title: 'Testing Guidelines'
+description: 'Testing strategies and best practices for the Vantix Sales System'
+---
+
+## Testing Strategy
+
+The Vantix Sales System follows a comprehensive testing approach across multiple layers:
+
+<Steps>
+  <Step title="Unit Testing">
+    Test individual components in isolation (services, repositories, validators)
+  </Step>
+  
+  <Step title="Integration Testing">
+    Test interactions between components (API endpoints, database operations)
+  </Step>
+  
+  <Step title="End-to-End Testing">
+    Test complete user workflows from API to database
+  </Step>
+</Steps>
+
+## Setting Up Tests
+
+Currently, the solution does not include test projects. To add testing to your solution:
+
+### Create Test Projects
+
+<CodeGroup>
+```bash Unit Tests
+dotnet new xunit -n Vantix.UnitTests -o Vantix.UnitTests
+dotnet sln add Vantix.UnitTests/Vantix.UnitTests.csproj
+```
+
+```bash Integration Tests
+dotnet new xunit -n Vantix.IntegrationTests -o Vantix.IntegrationTests
+dotnet sln add Vantix.IntegrationTests/Vantix.IntegrationTests.csproj
+```
+</CodeGroup>
+
+### Add Testing Dependencies
+
+Add required NuGet packages for testing:
+
+```bash
+cd Vantix.UnitTests
+dotnet add package xunit
+dotnet add package xunit.runner.visualstudio
+dotnet add package Microsoft.NET.Test.Sdk
+dotnet add package Moq
+dotnet add package FluentAssertions
+```
+
+For integration tests, also add:
+
+```bash
+cd Vantix.IntegrationTests
+dotnet add package Microsoft.AspNetCore.Mvc.Testing
+dotnet add package Microsoft.EntityFrameworkCore.InMemory
+```
+
+## Unit Testing
+
+### Testing Application Services
+
+Example unit test for a service class:
+
+```csharp Vantix.UnitTests/Services/ClienteServiceTests.cs
+using Xunit;
+using Moq;
+using FluentAssertions;
+using Vantix.Application.Services;
+using Vantix.Domain.Entities.Models;
+
+public class ClienteServiceTests
+{
+    [Fact]
+    public async Task CreateCliente_ShouldReturnCliente_WhenDataIsValid()
+    {
+        // Arrange
+        var mockRepository = new Mock<IClienteRepository>();
+        var service = new ClienteService(mockRepository.Object);
+        
+        var newCliente = new Clientes 
+        { 
+            Nombre = "Juan",
+            Apellido = "Pérez",
+            DocumentoIdentidad = "12345678"
+        };
+        
+        mockRepository
+            .Setup(r => r.CreateAsync(It.IsAny<Clientes>()))
+            .ReturnsAsync(newCliente);
+        
+        // Act
+        var result = await service.CreateClienteAsync(newCliente);
+        
+        // Assert
+        result.Should().NotBeNull();
+        result.Nombre.Should().Be("Juan");
+        mockRepository.Verify(r => r.CreateAsync(It.IsAny<Clientes>()), Times.Once);
+    }
+}
+```
+
+### Testing Validators
+
+Example validation test:
+
+```csharp Vantix.UnitTests/Validators/ClienteValidatorTests.cs
+using Xunit;
+using FluentAssertions;
+using Vantix.Application.Validators;
+using Vantix.Domain.Entities.Models;
+
+public class ClienteValidatorTests
+{
+    [Fact]
+    public void Validate_ShouldFail_WhenNombreIsEmpty()
+    {
+        // Arrange
+        var validator = new ClienteValidator();
+        var cliente = new Clientes { Nombre = "" };
+        
+        // Act
+        var result = validator.Validate(cliente);
+        
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == "Nombre");
+    }
+}
+```
+
+## Integration Testing
+
+### Testing API Endpoints
+
+Use `WebApplicationFactory` to test API endpoints:
+
+```csharp Vantix.IntegrationTests/Api/ClientesControllerTests.cs
+using System.Net.Http.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Xunit;
+using FluentAssertions;
+using Vantix.Api;
+using Vantix.Domain.Entities.Models;
+
+public class ClientesControllerTests : IClassFixture<WebApplicationFactory<Program>>
+{
+    private readonly HttpClient _client;
+    
+    public ClientesControllerTests(WebApplicationFactory<Program> factory)
+    {
+        _client = factory.CreateClient();
+    }
+    
+    [Fact]
+    public async Task GetClientes_ShouldReturnOk()
+    {
+        // Act
+        var response = await _client.GetAsync("/api/clientes");
+        
+        // Assert
+        response.Should().BeSuccessful();
+    }
+    
+    [Fact]
+    public async Task CreateCliente_ShouldReturnCreated_WhenDataIsValid()
+    {
+        // Arrange
+        var newCliente = new Clientes
+        {
+            Nombre = "Test",
+            Apellido = "User",
+            DocumentoIdentidad = "99999999",
+            Email = "test@example.com"
+        };
+        
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/clientes", newCliente);
+        
+        // Assert
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.Created);
+    }
+}
+```
+
+### Testing with In-Memory Database
+
+Configure in-memory database for testing:
+
+```csharp Vantix.IntegrationTests/TestWebApplicationFactory.cs
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Vantix.Infrastructure.Persistence;
+
+public class TestWebApplicationFactory<TProgram> : WebApplicationFactory<TProgram> 
+    where TProgram : class
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            // Remove the real database
+            var descriptor = services.SingleOrDefault(
+                d => d.ServiceType == typeof(DbContextOptions<VantixDbContext>));
+            
+            if (descriptor != null)
+                services.Remove(descriptor);
+            
+            // Add in-memory database
+            services.AddDbContext<VantixDbContext>(options =>
+            {
+                options.UseInMemoryDatabase("TestDatabase");
+            });
+        });
+    }
+}
+```
+
+## Running Tests
+
+### Run All Tests
+
+```bash
+dotnet test
+```
+
+### Run Specific Test Project
+
+```bash
+dotnet test Vantix.UnitTests
+```
+
+### Run with Detailed Output
+
+```bash
+dotnet test --logger "console;verbosity=detailed"
+```
+
+### Run with Code Coverage
+
+```bash
+dotnet test --collect="XPlat Code Coverage"
+```
+
+## Test Organization
+
+Organize tests following the project structure:
+
+```
+Vantix.UnitTests/
+├── Application/
+│   ├── Services/
+│   └── Validators/
+├── Core/
+└── Domain/
+
+Vantix.IntegrationTests/
+├── Api/
+│   └── Controllers/
+├── Infrastructure/
+│   └── Repositories/
+└── TestWebApplicationFactory.cs
+```
+
+## Best Practices
+
+<Note>
+  **Follow AAA Pattern**: Arrange, Act, Assert
+  
+  - **Arrange**: Set up test data and dependencies
+  - **Act**: Execute the code under test
+  - **Assert**: Verify the expected outcome
+</Note>
+
+### Naming Conventions
+
+Use descriptive test names:
+
+```
+MethodName_Should_ExpectedBehavior_When_Condition
+```
+
+Examples:
+- `CreateCliente_Should_ThrowException_When_EmailIsInvalid`
+- `GetClientes_Should_ReturnEmptyList_When_NoDataExists`
+- `UpdateCliente_Should_ReturnNotFound_When_IdDoesNotExist`
+
+### Test Independence
+
+Each test should be independent and not rely on other tests:
+
+```csharp
+// Good: Each test sets up its own data
+[Fact]
+public async Task Test1()
+{
+    var data = CreateTestData();
+    // ... test logic
+}
+
+[Fact]
+public async Task Test2()
+{
+    var data = CreateTestData();
+    // ... test logic
+}
+```
+
+### Use Test Fixtures for Shared Setup
+
+```csharp
+public class ClienteTestsFixture : IDisposable
+{
+    public VantixDbContext DbContext { get; private set; }
+    
+    public ClienteTestsFixture()
+    {
+        var options = new DbContextOptionsBuilder<VantixDbContext>()
+            .UseInMemoryDatabase("TestDb")
+            .Options;
+        
+        DbContext = new VantixDbContext(options);
+    }
+    
+    public void Dispose()
+    {
+        DbContext.Dispose();
+    }
+}
+
+public class ClienteTests : IClassFixture<ClienteTestsFixture>
+{
+    private readonly ClienteTestsFixture _fixture;
+    
+    public ClienteTests(ClienteTestsFixture fixture)
+    {
+        _fixture = fixture;
+    }
+}
+```
+
+## Continuous Integration
+
+Add testing to your CI/CD pipeline:
+
+```yaml .github/workflows/test.yml
+name: Run Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '10.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --no-restore
+    
+    - name: Test
+      run: dotnet test --no-build --verbosity normal --collect="XPlat Code Coverage"
+```

@@ -1,0 +1,390 @@
+---
+title: 'Database Migration'
+description: 'Learn how to manage database schema and migrations for the Vantix Sales System'
+---
+
+## Database Scaffolding Overview
+
+The Vantix Sales System uses **Entity Framework Core Database-First** approach, meaning:
+
+1. Database schema is created directly in SQL Server
+2. Entity models are scaffolded (generated) from the existing database
+3. The `VantixDbContext` is automatically created with entity configurations
+
+<Note>
+  This approach differs from Code-First migrations where you define models in code and generate database schema from them.
+</Note>
+
+## Scaffold Script
+
+The project includes a `scaffold.bat` script to automate database scaffolding:
+
+```batch scaffold.bat
+@echo off
+echo Generating models in Domain and Infrastructure...
+
+dotnet ef dbcontext scaffold "Server=GARIEN-DESKTOP;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;" Microsoft.EntityFrameworkCore.SqlServer ^
+  --project Vantix.Infrastructure ^
+  --output-dir ../Vantix.Domain/Entities/Models ^
+  --context-dir Persistence ^
+  --context VantixDbContext ^
+  --force ^
+  --no-pluralize ^
+  --namespace Vantix.Domain.Entities.Models ^
+  --context-namespace Vantix.Infrastructure.Persistence
+
+echo Review your folders now!
+pause
+```
+
+## Using the Scaffold Script
+
+<Steps>
+  <Step title="Update Connection String">
+    Before running the scaffold script, update the connection string in `scaffold.bat` to match your SQL Server instance:
+
+    ```batch
+    "Server=YOUR_SERVER;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;"
+    ```
+
+    Replace:
+    - `YOUR_SERVER` with your SQL Server instance name (e.g., `localhost`, `.\SQLEXPRESS`)
+    - Adjust authentication if needed (see connection string formats below)
+  </Step>
+
+  <Step title="Run the Script">
+    Execute the scaffold script from the project root:
+
+    ```bash
+    cd /path/to/SistemasVentasV2Angular
+    .\scaffold.bat
+    ```
+
+    Or on Linux/macOS, run the dotnet ef command directly:
+
+    ```bash
+    dotnet ef dbcontext scaffold "Server=YOUR_SERVER;Database=VantixV1;User Id=YOUR_USER;Password=YOUR_PASSWORD;TrustServerCertificate=true;" Microsoft.EntityFrameworkCore.SqlServer \
+      --project Vantix.Infrastructure \
+      --output-dir ../Vantix.Domain/Entities/Models \
+      --context-dir Persistence \
+      --context VantixDbContext \
+      --force \
+      --no-pluralize \
+      --namespace Vantix.Domain.Entities.Models \
+      --context-namespace Vantix.Infrastructure.Persistence
+    ```
+  </Step>
+
+  <Step title="Review Generated Files">
+    The scaffold process generates:
+
+    - **Entity Models**: `Vantix.Domain/Entities/Models/*.cs`
+    - **DbContext**: `Vantix.Infrastructure/Persistence/VantixDbContext.cs`
+
+    Example generated entity:
+
+    ```csharp Vantix.Domain/Entities/Models/Clientes.cs
+    public partial class Clientes
+    {
+        public int ClienteId { get; set; }
+        public string Nombre { get; set; } = null!;
+        public string Apellido { get; set; } = null!;
+        public string DocumentoIdentidad { get; set; } = null!;
+        public string? Email { get; set; }
+        public string? Telefono { get; set; }
+        public DateTime FechaRegistro { get; set; }
+        public bool Activo { get; set; }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Connection String Formats
+
+<CodeGroup>
+```text Windows Authentication
+Server=localhost;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;
+```
+
+```text SQL Server Authentication
+Server=localhost;Database=VantixV1;User Id=sa;Password=YourPassword;TrustServerCertificate=true;
+```
+
+```text Named Instance
+Server=localhost\SQLEXPRESS;Database=VantixV1;Trusted_Connection=True;TrustServerCertificate=true;
+```
+
+```text Azure SQL
+Server=tcp:yourserver.database.windows.net,1433;Database=VantixV1;User Id=yourusername;Password=yourpassword;Encrypt=True;TrustServerCertificate=False;
+```
+</CodeGroup>
+
+## Scaffold Command Options
+
+Understanding the scaffold command parameters:
+
+| Parameter | Description |
+|-----------|-------------|
+| `--project` | Target project for DbContext (Vantix.Infrastructure) |
+| `--output-dir` | Where to generate entity classes (../Vantix.Domain/Entities/Models) |
+| `--context-dir` | Where to generate DbContext (Persistence) |
+| `--context` | Name of the DbContext class (VantixDbContext) |
+| `--force` | Overwrite existing files |
+| `--no-pluralize` | Keep table names as-is, don't pluralize |
+| `--namespace` | Namespace for entity classes |
+| `--context-namespace` | Namespace for DbContext |
+
+<Warning>
+  **The `--force` flag overwrites existing files!** Any manual changes to generated entities will be lost. See customization section below.
+</Warning>
+
+## Database Schema Changes
+
+When you need to update the database schema:
+
+<Steps>
+  <Step title="Modify Database Schema">
+    Make changes directly in SQL Server using SQL Server Management Studio or scripts:
+
+    ```sql
+    -- Example: Add a new column
+    ALTER TABLE Clientes
+    ADD Direccion NVARCHAR(200) NULL;
+
+    -- Example: Create a new table
+    CREATE TABLE Productos (
+        ProductoId INT PRIMARY KEY IDENTITY(1,1),
+        Nombre NVARCHAR(100) NOT NULL,
+        Precio DECIMAL(18,2) NOT NULL,
+        Stock INT NOT NULL DEFAULT 0
+    );
+    ```
+  </Step>
+
+  <Step title="Re-run Scaffold">
+    After database changes, re-scaffold to update entity models:
+
+    ```bash
+    .\scaffold.bat
+    ```
+
+    This will:
+    - Regenerate all entity models with new columns
+    - Update DbContext with new tables
+    - Overwrite existing generated files
+  </Step>
+
+  <Step title="Review and Test">
+    - Review the generated changes
+    - Update any custom code that depends on modified entities
+    - Test the application to ensure everything works
+  </Step>
+</Steps>
+
+## Customizing Generated Entities
+
+Since scaffold overwrites files with `--force`, use **partial classes** for customization:
+
+### Create Partial Class Extensions
+
+```csharp Vantix.Domain/Entities/Extensions/Clientes.cs
+namespace Vantix.Domain.Entities.Models;
+
+public partial class Clientes
+{
+    // Add custom properties
+    public string NombreCompleto => $"{Nombre} {Apellido}";
+    
+    // Add custom methods
+    public bool IsEmailValid()
+    {
+        return !string.IsNullOrEmpty(Email) && Email.Contains('@');
+    }
+    
+    // Add validation logic
+    public IEnumerable<string> Validate()
+    {
+        var errors = new List<string>();
+        
+        if (string.IsNullOrWhiteSpace(Nombre))
+            errors.Add("Nombre is required");
+            
+        if (string.IsNullOrWhiteSpace(DocumentoIdentidad))
+            errors.Add("DocumentoIdentidad is required");
+            
+        return errors;
+    }
+}
+```
+
+<Note>
+  Partial classes allow you to extend generated entities without modifying the scaffold output. Your customizations survive re-scaffolding.
+</Note>
+
+## DbContext Configuration
+
+### Remove Hardcoded Connection String
+
+The generated `VantixDbContext` contains a hardcoded connection string:
+
+```csharp VantixDbContext.cs (Generated)
+protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    => optionsBuilder.UseSqlServer("Server=GARIEN-DESKTOP;...");
+```
+
+**Remove this method** and configure the connection string in `Program.cs` instead:
+
+```csharp Program.cs
+using Vantix.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Register DbContext with connection string from configuration
+builder.Services.AddDbContext<VantixDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("ventixDb")
+    ));
+
+// ... rest of configuration
+```
+
+<Warning>
+  After each scaffold, you'll need to remove the `OnConfiguring` method from `VantixDbContext.cs` or use a partial class to override it.
+</Warning>
+
+### Create DbContext Partial Class
+
+To avoid manually editing after each scaffold:
+
+```csharp Vantix.Infrastructure/Persistence/VantixDbContext.Partial.cs
+namespace Vantix.Infrastructure.Persistence;
+
+public partial class VantixDbContext
+{
+    // Override to prevent hardcoded connection string
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        // Do nothing - configuration handled in Program.cs
+        // This overrides the generated OnConfiguring method
+    }
+}
+```
+
+## Production Database Deployment
+
+For deploying to production:
+
+<Steps>
+  <Step title="Create Database Schema Script">
+    Generate a SQL script from your development database:
+
+    **SQL Server Management Studio:**
+    1. Right-click database → Tasks → Generate Scripts
+    2. Select all tables and schema objects
+    3. Save to file (e.g., `VantixV1_Schema.sql`)
+  </Step>
+
+  <Step title="Deploy to Production Database">
+    Execute the schema script on production SQL Server:
+
+    ```sql
+    -- Connect to production server
+    USE VantixV1;
+    GO
+
+    -- Execute schema script
+    -- (paste or execute from file)
+    ```
+  </Step>
+
+  <Step title="Scaffold Production Environment">
+    After production database is ready, scaffold from production (if needed):
+
+    ```bash
+    dotnet ef dbcontext scaffold "Server=PROD_SERVER;Database=VantixV1;User Id=AppUser;Password=***;" Microsoft.EntityFrameworkCore.SqlServer \
+      --project Vantix.Infrastructure \
+      --output-dir ../Vantix.Domain/Entities/Models \
+      --context VantixDbContext \
+      --force
+    ```
+
+    <Note>
+      Usually you scaffold from development and deploy the same code to production. Scaffolding from production is only needed if schemas differ.
+    </Note>
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### "Build failed" Error
+
+If scaffold fails with build errors:
+
+```bash
+# Clean and rebuild
+dotnet clean
+dotnet build
+
+# Then re-run scaffold
+.\scaffold.bat
+```
+
+### Connection Errors
+
+If scaffold can't connect to database:
+
+1. Verify SQL Server is running
+2. Check connection string format
+3. Verify authentication credentials
+4. Test connection with SQL Server Management Studio first
+5. Check firewall rules
+
+### "Database does not exist" Error
+
+Create the database first:
+
+```sql
+CREATE DATABASE VantixV1;
+GO
+```
+
+### Entity Framework Tools Not Found
+
+Install EF Core tools globally:
+
+```bash
+dotnet tool install --global dotnet-ef
+```
+
+Or update if already installed:
+
+```bash
+dotnet tool update --global dotnet-ef
+```
+
+## Best Practices
+
+<Note>
+  **Database-First Workflow:**
+  
+  1. Make schema changes in SQL Server
+  2. Re-run scaffold to update entities
+  3. Use partial classes for customizations
+  4. Version control SQL schema scripts
+  5. Test thoroughly after each scaffold
+</Note>
+
+### Version Control
+
+Keep SQL schema scripts in version control:
+
+```
+/database
+  /migrations
+    001_initial_schema.sql
+    002_add_productos_table.sql
+    003_add_clientes_direccion.sql
+```
+
+This allows tracking schema changes over time and easy deployment to new environments.

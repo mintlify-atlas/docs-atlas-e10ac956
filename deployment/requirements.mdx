@@ -1,0 +1,264 @@
+---
+title: 'Deployment Requirements'
+description: 'Prerequisites and requirements for deploying the Vantix Sales System'
+---
+
+## System Requirements
+
+### Server Requirements
+
+Minimum requirements for hosting the Vantix Sales System API:
+
+<Note>
+  **Production Environment**
+  - **CPU**: 2+ cores
+  - **RAM**: 4 GB minimum, 8 GB recommended
+  - **Storage**: 20 GB available space
+  - **OS**: Windows Server 2019+, Linux (Ubuntu 20.04+), or Docker container
+</Note>
+
+### Software Requirements
+
+<Steps>
+  <Step title=".NET 10 Runtime">
+    The application requires **.NET 10.0 Runtime** installed on the server.
+
+    **Download**: [ASP.NET Core Runtime 10.0](https://dotnet.microsoft.com/download/dotnet/10.0)
+
+    <Warning>
+      Install the **ASP.NET Core Runtime**, not just the .NET Runtime. The ASP.NET Core Runtime includes everything needed to run web applications.
+    </Warning>
+
+    Verify installation:
+    ```bash
+    dotnet --list-runtimes
+    ```
+
+    You should see:
+    ```
+    Microsoft.AspNetCore.App 10.0.x
+    Microsoft.NETCore.App 10.0.x
+    ```
+  </Step>
+
+  <Step title="SQL Server Database">
+    The application requires **Microsoft SQL Server 2019** or later.
+
+    Supported options:
+    - SQL Server 2019/2022 (Standard, Enterprise, or Express)
+    - Azure SQL Database
+    - SQL Server on Linux
+    - SQL Server in Docker container
+
+    <Note>
+      **Database Name**: The default database name is `VantixV1`. You can change this in the configuration.
+    </Note>
+  </Step>
+
+  <Step title="Web Server (Optional)">
+    For production deployments, consider using a reverse proxy:
+
+    - **Windows**: IIS 10.0+
+    - **Linux**: Nginx 1.18+ or Apache 2.4+
+    - **Cloud**: Azure App Service, AWS Elastic Beanstalk, or containerized deployment
+
+    <Note>
+      The Kestrel web server (included with ASP.NET Core) can be used standalone for development, but a reverse proxy is recommended for production.
+    </Note>
+  </Step>
+</Steps>
+
+## Network Requirements
+
+### Ports
+
+The following ports need to be accessible:
+
+| Service | Port | Protocol | Purpose |
+|---------|------|----------|----------|
+| HTTP | 80 | TCP | HTTP traffic (if using reverse proxy) |
+| HTTPS | 443 | TCP | HTTPS traffic (recommended) |
+| Kestrel | 5000 | TCP | Default HTTP port (if running standalone) |
+| Kestrel | 5001 | TCP | Default HTTPS port (if running standalone) |
+| SQL Server | 1433 | TCP | Database connection |
+
+<Warning>
+  **Never expose port 5000/5001 directly to the internet**. Always use a reverse proxy (IIS, Nginx, etc.) for production deployments.
+</Warning>
+
+### Firewall Configuration
+
+Ensure the following firewall rules are configured:
+
+1. **Allow inbound** HTTP/HTTPS traffic (ports 80/443)
+2. **Allow outbound** SQL Server connection (port 1433)
+3. **Block direct access** to Kestrel ports (5000/5001) from external networks
+
+## SSL/TLS Certificate
+
+For production deployments, you need a valid SSL/TLS certificate:
+
+<CodeGroup>
+```text Self-Signed (Development Only)
+DO NOT use in production
+Generate with: dotnet dev-certs https
+```
+
+```text Let's Encrypt (Free)
+Recommended for production
+Use Certbot with Nginx/Apache
+```
+
+```text Commercial Certificate
+Purchase from trusted CA
+(DigiCert, GlobalSign, etc.)
+```
+</CodeGroup>
+
+## Database Requirements
+
+### Database Setup
+
+Before deployment, ensure:
+
+1. **Database exists**: `VantixV1` database is created
+2. **User permissions**: Application user has appropriate permissions
+3. **Network access**: Server can connect to SQL Server instance
+
+### Required Permissions
+
+The application database user needs the following permissions:
+
+- `db_datareader` - Read data from all tables
+- `db_datawriter` - Write data to all tables
+- `EXECUTE` - Execute stored procedures (if any)
+
+```sql
+USE VantixV1;
+GO
+
+CREATE USER [VantixAppUser] FOR LOGIN [VantixAppUser];
+GO
+
+ALTER ROLE db_datareader ADD MEMBER [VantixAppUser];
+ALTER ROLE db_datawriter ADD MEMBER [VantixAppUser];
+GO
+```
+
+<Note>
+  For development, you can use Windows Authentication. For production, create a dedicated SQL Server login with strong password.
+</Note>
+
+## Security Requirements
+
+### Authentication & Authorization
+
+The system uses **JWT (JSON Web Tokens)** for authentication. Requirements:
+
+1. **JWT Secret Key**: Minimum 32 characters, cryptographically random
+2. **HTTPS**: Always use HTTPS in production to protect tokens in transit
+3. **Token Expiration**: Configure appropriate token lifetime
+
+### Environment Variables
+
+Never store secrets in `appsettings.json`. Use one of:
+
+- **Azure App Configuration**
+- **AWS Secrets Manager**
+- **Environment Variables**
+- **Azure Key Vault**
+- **Docker Secrets**
+
+### CORS Configuration
+
+If your frontend is hosted on a different domain, configure CORS:
+
+```csharp Program.cs
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", builder =>
+    {
+        builder.WithOrigins("https://your-frontend-domain.com")
+               .AllowAnyMethod()
+               .AllowAnyHeader();
+    });
+});
+```
+
+<Warning>
+  **Never use** `AllowAnyOrigin()` in production. Always specify exact allowed origins.
+</Warning>
+
+## Deployment Options
+
+### Option 1: Windows Server with IIS
+
+**Requirements:**
+- Windows Server 2019 or later
+- IIS 10.0 or later
+- .NET 10 Hosting Bundle
+
+**Pros:**
+- Native Windows integration
+- Windows Authentication support
+- Familiar administration tools
+
+### Option 2: Linux Server
+
+**Requirements:**
+- Ubuntu 20.04+, CentOS 8+, or similar
+- .NET 10 Runtime
+- Nginx or Apache reverse proxy
+- Systemd service configuration
+
+**Pros:**
+- Lower licensing costs
+- Better container support
+- Efficient resource usage
+
+### Option 3: Docker Container
+
+**Requirements:**
+- Docker Engine 20.10+
+- Docker Compose (optional)
+
+**Pros:**
+- Consistent environment
+- Easy scaling
+- Simplified deployment
+
+### Option 4: Cloud Platform
+
+**Azure App Service:**
+- .NET 10 support
+- Automatic scaling
+- Integrated with Azure SQL
+
+**AWS Elastic Beanstalk:**
+- .NET platform support
+- Load balancing
+- Auto-scaling
+
+## Pre-Deployment Checklist
+
+Before deploying to production, verify:
+
+- [ ] .NET 10 Runtime installed on target server
+- [ ] SQL Server accessible from application server
+- [ ] Database created and schema deployed
+- [ ] Connection string configured (not hardcoded)
+- [ ] JWT secret key configured securely
+- [ ] SSL/TLS certificate installed and configured
+- [ ] Firewall rules configured
+- [ ] CORS policy configured for production domains
+- [ ] Logging configured (Application Insights, Serilog, etc.)
+- [ ] Health checks configured
+- [ ] Backup strategy in place
+
+## Next Steps
+
+Once requirements are met:
+
+1. [Configure application settings](/deployment/configuration)
+2. [Deploy database schema](/deployment/database-migration)
+3. Deploy and test the application

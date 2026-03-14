@@ -1,0 +1,152 @@
+---
+title: Domain Layer
+description: Understanding the domain layer architecture and entities in Vantix Sales System
+---
+
+## Overview
+
+The Domain Layer is the heart of the Vantix Sales System, containing the core business entities and domain logic. This layer is framework-independent and represents the fundamental business concepts of the sales system.
+
+<Note>
+  The Domain Layer follows Domain-Driven Design (DDD) principles, keeping business logic separate from infrastructure concerns.
+</Note>
+
+## Architecture
+
+The domain layer is organized under the `Vantix.Domain` namespace and contains:
+
+- **Entities**: Core business objects that have identity and lifecycle
+- **Value Objects**: Immutable objects defined by their attributes
+- **Domain Events**: Representations of business events
+- **Repository Interfaces**: Contracts for data access (implemented in Infrastructure layer)
+
+## Core Entities
+
+### Clientes (Customers) Entity
+
+The `Clientes` entity represents customers in the sales system. It's a fundamental domain entity that captures customer information and business rules.
+
+<CodeGroup>
+```csharp Vantix.Infrastructure/Entities/Models/Clientes.cs
+using System;
+using System.Collections.Generic;
+
+namespace Vantix.Domain.Entities.Models;
+
+public partial class Clientes
+{
+    public int ClienteId { get; set; }
+
+    public string Nombre { get; set; } = null!;
+
+    public string Apellido { get; set; } = null!;
+
+    public string DocumentoIdentidad { get; set; } = null!;
+
+    public string? Email { get; set; }
+
+    public string? Telefono { get; set; }
+
+    public DateTime? FechaRegistro { get; set; }
+
+    public bool? Activo { get; set; }
+}
+```
+</CodeGroup>
+
+### Entity Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `ClienteId` | int | Unique identifier for the customer |
+| `Nombre` | string | Customer's first name (required) |
+| `Apellido` | string | Customer's last name (required) |
+| `DocumentoIdentidad` | string | Identity document number (required, unique) |
+| `Email` | string? | Customer's email address (optional) |
+| `Telefono` | string? | Customer's phone number (optional) |
+| `FechaRegistro` | DateTime? | Registration date (auto-generated) |
+| `Activo` | bool? | Active status flag (default: true) |
+
+<Tip>
+  The `DocumentoIdentidad` field is unique across all customers, ensuring no duplicate registrations.
+</Tip>
+
+## Entity Characteristics
+
+### Identity
+
+Each entity in the domain layer has a unique identifier:
+- `ClienteId` serves as the primary key for the Clientes entity
+- Identity is maintained throughout the entity's lifecycle
+- Entities with the same ID are considered the same object, even if other properties differ
+
+### Validation
+
+Domain entities enforce business rules:
+- Required fields are marked with `= null!` to indicate non-nullable reference types
+- Optional fields use nullable types (`string?`, `DateTime?`, `bool?`)
+- The `partial` modifier allows for extension in separate files for additional business logic
+
+### Immutability Considerations
+
+While the current implementation uses mutable properties, consider:
+- Adding validation methods to ensure data integrity
+- Implementing domain events for state changes
+- Using value objects for complex properties
+
+## Best Practices
+
+<Note>
+  **Keep the Domain Layer Pure**
+  
+  - No dependencies on frameworks or external libraries
+  - No database access code
+  - No UI concerns
+  - Only business logic and domain rules
+</Note>
+
+### Extending Entities
+
+Use the `partial` class feature to add domain logic:
+
+```csharp
+// In a separate file: Clientes.Logic.cs
+namespace Vantix.Domain.Entities.Models;
+
+public partial class Clientes
+{
+    public string NombreCompleto() => $"{Nombre} {Apellido}";
+    
+    public bool EsActivo() => Activo ?? false;
+    
+    public void Activar() => Activo = true;
+    
+    public void Desactivar() => Activo = false;
+}
+```
+
+### Domain Rules
+
+Implement business rules as methods on the entity:
+
+```csharp
+public bool PuedeRealizarCompra()
+{
+    return Activo == true && !string.IsNullOrEmpty(Email);
+}
+
+public void ValidarDatos()
+{
+    if (string.IsNullOrWhiteSpace(Nombre))
+        throw new DomainException("El nombre es requerido");
+        
+    if (string.IsNullOrWhiteSpace(DocumentoIdentidad))
+        throw new DomainException("El documento de identidad es requerido");
+}
+```
+
+## Related Documentation
+
+- [Application Layer](/concepts/application-layer) - Business logic and use cases
+- [Infrastructure Layer](/concepts/infrastructure-layer) - Data persistence and Entity Framework
+- [API Layer](/concepts/api-layer) - REST API controllers and endpoints

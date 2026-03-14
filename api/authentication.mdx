@@ -1,0 +1,143 @@
+---
+title: "Authentication"
+description: "Learn how to authenticate and authorize API requests in Vantix"
+---
+
+## Overview
+
+The Vantix Sales System API uses ASP.NET Core's built-in authorization middleware to secure endpoints. All protected endpoints require proper authentication before access is granted.
+
+## Authorization Configuration
+
+The API is configured with authorization middleware in `Program.cs`:
+
+```csharp
+app.UseAuthorization();
+```
+
+This middleware intercepts requests and validates authorization before allowing access to protected resources.
+
+## Authentication Methods
+
+### Bearer Token Authentication
+
+The recommended authentication method is using Bearer tokens. Include the token in the Authorization header of your requests:
+
+```http
+Authorization: Bearer YOUR_ACCESS_TOKEN
+```
+
+### Example Request
+
+Here's an example of an authenticated API request:
+
+```bash
+curl -X GET https://your-domain.com/api/clientes \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+## Authorization Header Format
+
+The Authorization header must follow this format:
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for API authentication
+  
+  Format: `Bearer {token}`
+</ParamField>
+
+## Obtaining Access Tokens
+
+<Steps>
+  <Step title="Contact Administrator">
+    Request API credentials from your system administrator
+  </Step>
+  
+  <Step title="Receive Token">
+    You will receive an access token for API authentication
+  </Step>
+  
+  <Step title="Include in Requests">
+    Add the token to the Authorization header in all API requests
+  </Step>
+</Steps>
+
+## Security Best Practices
+
+<Warning>
+  Never expose your access tokens in client-side code or public repositories. Always keep tokens secure and rotate them regularly.
+</Warning>
+
+### Recommendations
+
+- **Use HTTPS**: All API requests must use HTTPS to encrypt data in transit
+- **Secure Storage**: Store tokens securely using environment variables or secure vaults
+- **Token Rotation**: Implement regular token rotation policies
+- **Minimal Scope**: Request only the permissions necessary for your use case
+- **Monitor Access**: Regularly audit API access logs
+
+## Authorization Errors
+
+If authentication fails, you'll receive one of the following error responses:
+
+### 401 Unauthorized
+
+Returned when the request lacks valid authentication credentials:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7235#section-3.1",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Authorization has been denied for this request."
+}
+```
+
+### 403 Forbidden
+
+Returned when the authenticated user lacks permission for the requested resource:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7231#section-6.5.3",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "You do not have permission to access this resource."
+}
+```
+
+## Testing Authentication
+
+You can test your authentication by making a request to any protected endpoint:
+
+```bash
+# Without authentication (should fail)
+curl -X GET https://your-domain.com/api/clientes
+
+# With authentication (should succeed)
+curl -X GET https://your-domain.com/api/clientes \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## HTTPS Redirection
+
+The API enforces HTTPS redirection as configured in `Program.cs`:
+
+```csharp
+app.UseHttpsRedirection();
+```
+
+All HTTP requests are automatically redirected to HTTPS to ensure secure communication.
+
+<Info>
+  In development environments, you may need to configure SSL certificates. ASP.NET Core development certificates are automatically trusted for local development.
+</Info>
+
+## Next Steps
+
+Now that you understand authentication, you can:
+
+- Review [Error Handling](/api/error-handling) to understand API responses
+- Explore [Client Endpoints](/api/endpoints/clients) to start making API calls
+- Check the [API Overview](/api/overview) for general API information
